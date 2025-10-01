@@ -27,7 +27,7 @@ Below: SEN2NEON  LR/HR tile pairs, visualized with RGB and randomly selected ban
 ## Quick Start
 
 ### Dataset
-
+Create Datamodule
 ```python
 from torch.utils.data import DataLoader
 from data.sen2neon_ds import SEN2NEON, SEN2NEONDataModule
@@ -44,8 +44,24 @@ datamodule.setup(stage="predict") # set up datamodule for prediction
 loader = datamodule.predict_dataloader() # get the prediction dataloader
 batch = next(iter(loader)) # get a batch from the dataloader
 print(batch["lr"].shape, batch["hr"].shape, batch["name"]) # print shapes of lr, hr, and names in the batch
-
 ```
+
+
+
+Create Pytorch-Lightning Dataset Object
+```python
+LR_DIR = "/data3/SEN2NEON/processed/neon_10m_linearized"
+HR_DIR = "/data3/SEN2NEON/processed/neon_2.5m_linearized"
+
+ds = SEN2NEON(
+    LR_DIR, HR_DIR,
+    pattern="*.tif",
+    crop_size_lr=128,   # None for full images; 128 for aligned LR crops (HR crop auto-scales)
+    dtype=torch.float32,
+    allow_nan=True
+)
+```
+
 
 ### Land-cover Integration
 
