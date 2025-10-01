@@ -75,8 +75,3 @@ ds.save_example(out_path="example.png")
 - [ ] Run super-resolution validation on SEN2NEON
 - [ ] Evaluate metrics with **opensr-test**
 
----
-
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
