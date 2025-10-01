@@ -560,6 +560,7 @@ if __name__ == "__main__":
     batch = next(iter(loader))
     print(batch["lr"].shape, batch["hr"].shape, batch["name"])
     
+    
     # helper to create/read centroid CSV
     #ds.create_csv(out_csv="/data3/SEN2NEON/sen2neon_centroids.csv")
     #ds.read_centroid_csv("/data3/SEN2NEON/sen2neon_centroids.csv")
