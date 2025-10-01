@@ -475,9 +475,75 @@ class SEN2NEON(Dataset):
         plt.close(fig)
 
         return out_path
+    
+# Create Pytorch Lightnig Datamodule
+class SEN2NEONDataModule:
+    def __init__(
+        self,
+        lr_dir: str,
+        hr_dir: str,
+        pattern: str = "*.tif",
+        crop_size_lr: int | None = None,
+        dtype: torch.dtype = torch.float32,
+        allow_nan: bool = True,
+        batch_size: int = 4,
+        shuffle: bool = True,
+        num_workers: int = 4,
+        pin_memory: bool = True,
+    ):
+        self.lr_dir = lr_dir
+        self.hr_dir = hr_dir
+        self.pattern = pattern
+        self.crop_size_lr = crop_size_lr
+        self.dtype = dtype
+        self.allow_nan = allow_nan
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.num_workers = num_workers
+        self.pin_memory = pin_memory
+
+    def setup(self, stage: str | None = None):
+        if stage!="predict":
+            raise NotImplementedError("Only 'predict' stage is implemented.")
+        self.predict_dataset = SEN2NEON(
+            lr_dir=self.lr_dir,
+            hr_dir=self.hr_dir,
+            pattern=self.pattern,
+            crop_size_lr=self.crop_size_lr,
+            dtype=self.dtype,
+            allow_nan=self.allow_nan,
+        )
+
+    def predict_dataloader(self):
+        return DataLoader(
+            self.predict_dataset,
+            batch_size=self.batch_size,
+            shuffle=self.shuffle,
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
+        )
 
 
-# ---------- Example usage ----------
+if __name__ == "__main__":
+    print("SEN2NEON dataset module loaded.")
+    dm = SEN2NEONDataModule(
+        lr_dir="/data3/SEN2NEON/processed/neon_10m_linearized",
+        hr_dir="/data3/SEN2NEON/processed/neon_2.5m_linearized",
+        pattern="*.tif",
+        crop_size_lr=128,
+        dtype=torch.float32,
+        allow_nan=True,
+        batch_size=4,
+        shuffle=True,
+        num_workers=4,
+        pin_memory=True,
+    )
+    dm.setup(stage="predict")
+    loader = dm.predict_dataloader()
+    batch = next(iter(loader))
+    print(batch["lr"].shape, batch["hr"].shape, batch["name"])
+    
+
 if __name__ == "__main__":
     LR_DIR = "/data3/SEN2NEON/processed/neon_10m_linearized"
     HR_DIR = "/data3/SEN2NEON/processed/neon_2.5m_linearized"

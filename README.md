@@ -30,18 +30,21 @@ Below: SEN2NEON  LR/HR tile pairs, visualized with RGB and randomly selected ban
 
 ```python
 from torch.utils.data import DataLoader
-from sen2neon import SEN2NEON
+from data.sen2neon_ds import SEN2NEON, SEN2NEONDataModule
 
-ds = SEN2NEON(
-    lr_dir="/path/to/neon_10m_linearized",
-    hr_dir="/path/to/neon_2.5m_linearized",
-    pattern="*.tif",
-    crop_size_lr=None,
+datamodule = SEN2NEONDataModule(
+    lr_dir="/data3/SEN2NEON/processed/neon_10m_linearized",
+    hr_dir="/data3/SEN2NEON/processed/neon_2.5m_linearized",
+    pattern="*2019-06-15*T1*",
+    batch_size=4,
+    allow_nan=False,
+    pin_memory=True,
 )
+datamodule.setup(stage="predict") # set up datamodule for prediction
+loader = datamodule.predict_dataloader() # get the prediction dataloader
+batch = next(iter(loader)) # get a batch from the dataloader
+print(batch["lr"].shape, batch["hr"].shape, batch["name"]) # print shapes of lr, hr, and names in the batch
 
-loader = DataLoader(ds, batch_size=4, shuffle=True)
-batch = next(iter(loader))
-print(batch["lr"].shape, batch["hr"].shape, batch["name"])
 ```
 
 ### Land-cover Integration
