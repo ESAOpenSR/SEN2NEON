@@ -10,6 +10,10 @@ from rasterio.warp import transform
 import pandas as pd
 from rasterio.windows import from_bounds
 from tqdm import tqdm
+from PIL import Image
+import matplotlib.pyplot as plt
+import random
+
 
 class SEN2NEON(Dataset):
     """
@@ -359,7 +363,111 @@ class SEN2NEON(Dataset):
         merged["LC_text"] = merged["LC_Detail"]
         merged.to_csv("/data1/simon/GitHub/sen2neon_val/centroids_with_LC_cleaned.csv", index=False)
 
-    
+    def save_example(
+        self,
+        out_path: str | None = None,
+        *,
+        idx: int | None = None,
+        k_bands: int | None = None,
+        percentiles: tuple[float, float] = (2, 98),
+        seed: int | None = None,
+    ) -> str:
+        """
+        Plot and save a side-by-side LR/HR example using matplotlib.
+        Shows titles and subtitles with land cover + band selection.
+
+        Args:
+          out_path: file path to save PNG (default: cwd/example_<name>.png)
+          idx: optional index; if None picks random
+          k_bands: how many bands to use (default min(3,C))
+          percentiles: stretch range per channel
+          seed: random seed for reproducibility
+        """
+        if seed is not None:
+            random.seed(seed)
+
+        # pick random sample if idx not provided
+        if idx is None:
+            idx = random.randrange(len(self.pairs))
+
+        lr_path, hr_path = self.pairs[idx]
+        lr = self._read_tiff(lr_path)
+        hr = self._read_tiff(hr_path)
+
+        C = min(lr.shape[0], hr.shape[0])
+        k = k_bands or min(3, C)
+        bands = sorted(random.sample(range(C), k))
+        lr = lr[bands]
+        hr = hr[bands]
+
+        # helper: stretch per band
+        def _stretch(arr_chw, p=(2, 98)):
+            k, H, W = arr_chw.shape
+            out = np.zeros((k, H, W), dtype=np.float32)
+            for i in range(k):
+                a = arr_chw[i]
+                finite = np.isfinite(a)
+                if not finite.any():
+                    continue
+                lo, hi = np.nanpercentile(a, p[0]), np.nanpercentile(a, p[1])
+                if not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
+                    lo, hi = np.nanmin(a), np.nanmax(a)
+                b = np.clip((a - lo) / (hi - lo + 1e-12), 0, 1)
+                b[~finite] = 0
+                out[i] = b
+            return out
+
+        lr = _stretch(lr, percentiles)
+        hr = _stretch(hr, percentiles)
+
+        # convert to RGB for plotting
+        def _to_rgb(chw):
+            if chw.shape[0] == 1:
+                return np.repeat(chw, 3, axis=0)
+            elif chw.shape[0] >= 3:
+                return chw[:3]
+            else:
+                pad = np.zeros_like(chw[0:1])
+                return np.concatenate([chw, pad], axis=0)
+
+        lr_rgb = _to_rgb(lr).transpose(1, 2, 0)
+        hr_rgb = _to_rgb(hr).transpose(1, 2, 0)
+
+        # grab land cover class if present
+        lc_class = None
+        if hasattr(self, "centroids") and "LC_SuperClass" in self.centroids.columns:
+            row = self.centroids[self.centroids["lr_path"] == str(lr_path)]
+            if not row.empty:
+                lc_class = row["LC_SuperClass"].iloc[0]
+
+        # make figure
+        fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+        axs[0].imshow(lr_rgb)
+        axs[0].axis("off")
+        axs[0].set_title("LR", fontsize=14, weight="bold")
+        subtitle = f"Bands {bands}"
+        if lc_class:
+            subtitle += f"\nLC: {lc_class}"
+        axs[0].set_xlabel(subtitle, fontsize=10)
+
+        axs[1].imshow(hr_rgb)
+        axs[1].axis("off")
+        axs[1].set_title("HR", fontsize=14, weight="bold")
+        subtitle = f"Bands {bands}"
+        if lc_class:
+            subtitle += f"\nLC: {lc_class}"
+        axs[1].set_xlabel(subtitle, fontsize=10)
+
+        plt.tight_layout()
+
+        if out_path is None:
+            name = Path(lr_path).stem
+            out_path = Path.cwd() / f"example_{name}.png"
+        out_path = str(Path(out_path))
+        fig.savefig(out_path, dpi=200)
+        plt.close(fig)
+
+        return out_path
 
 
 # ---------- Example usage ----------
@@ -398,3 +506,6 @@ if __name__ == "__main__":
     #)
     #ds.centroids.to_csv("/data1/simon/GitHub/sen2neon_val/centroids_with_LC.csv", index=False)
     
+    # Save example PNG
+    for i in range(10):
+        ds.save_example(out_path=f"sen2neon_examples/example_{i}.png")

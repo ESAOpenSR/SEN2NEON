@@ -2,6 +2,8 @@
 csvs/
 __pycache__/
 logs/
+sen2neon_examples/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
