@@ -14,32 +14,15 @@ This repository provides:
 
 ## Example
 
-Below: a random LR/HR tile pair, visualized with randomly selected bands.  
-Land-cover class and band indices are annotated below each image.
+Below: SEN2NEON  LR/HR tile pairs, visualized with RGB and randomly selected bands.  
 
 <p align="center">
-  <img src="resources/SEN2NEON_example.png" alt="SEN2NEON example" width="80%">
+  <img src="resources/ex1.png" alt="SEN2NEON example" width="90%">
+  <img src="resources/ex2.png" alt="SEN2NEON example" width="90%">
 </p>
 
 ---
 
-## Installation
-
-Clone the repository and install dependencies:
-
-```bash
-git clone https://github.com/<your-org>/sen2neon.git
-cd sen2neon
-pip install -r requirements.txt
-```
-
-Dependencies include:
-- `torch`, `torchvision`
-- `rasterio`, `numpy`, `pandas`
-- `matplotlib`, `tqdm`
-- (planned) `opensr-test`
-
----
 
 ## Quick Start
 

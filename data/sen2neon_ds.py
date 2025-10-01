@@ -362,7 +362,7 @@ class SEN2NEON(Dataset):
         # human-friendly text label
         merged["LC_text"] = merged["LC_Detail"]
         merged.to_csv("/data1/simon/GitHub/sen2neon_val/centroids_with_LC_cleaned.csv", index=False)
-
+    
     def save_example(
         self,
         out_path: str | None = None,
@@ -373,15 +373,11 @@ class SEN2NEON(Dataset):
         seed: int | None = None,
     ) -> str:
         """
-        Plot and save a side-by-side LR/HR example using matplotlib.
-        Shows titles and subtitles with land cover + band selection.
+        Plot and save a PNG with 2 rows:
+        - Top row: LR and HR in RGB (bands 0,1,2 if available)
+        - Bottom row: LR and HR in random bands
 
-        Args:
-          out_path: file path to save PNG (default: cwd/example_<name>.png)
-          idx: optional index; if None picks random
-          k_bands: how many bands to use (default min(3,C))
-          percentiles: stretch range per channel
-          seed: random seed for reproducibility
+        Subtitles show chosen bands and LC class (if available).
         """
         if seed is not None:
             random.seed(seed)
@@ -395,12 +391,14 @@ class SEN2NEON(Dataset):
         hr = self._read_tiff(hr_path)
 
         C = min(lr.shape[0], hr.shape[0])
-        k = k_bands or min(3, C)
-        bands = sorted(random.sample(range(C), k))
-        lr = lr[bands]
-        hr = hr[bands]
 
-        # helper: stretch per band
+        # random band selection
+        k = k_bands or min(3, C)
+        bands_rand = sorted(random.sample(range(C), k))
+
+        # always use RGB = first 3 if available
+        bands_rgb = [3, 2, 1] if C >= 3 else [0]
+
         def _stretch(arr_chw, p=(2, 98)):
             k, H, W = arr_chw.shape
             out = np.zeros((k, H, W), dtype=np.float32)
@@ -417,10 +415,6 @@ class SEN2NEON(Dataset):
                 out[i] = b
             return out
 
-        lr = _stretch(lr, percentiles)
-        hr = _stretch(hr, percentiles)
-
-        # convert to RGB for plotting
         def _to_rgb(chw):
             if chw.shape[0] == 1:
                 return np.repeat(chw, 3, axis=0)
@@ -430,33 +424,46 @@ class SEN2NEON(Dataset):
                 pad = np.zeros_like(chw[0:1])
                 return np.concatenate([chw, pad], axis=0)
 
-        lr_rgb = _to_rgb(lr).transpose(1, 2, 0)
-        hr_rgb = _to_rgb(hr).transpose(1, 2, 0)
+        def _prep_image(arr, bands):
+            sub = arr[bands]
+            sub = _stretch(sub, percentiles)
+            return _to_rgb(sub).transpose(1, 2, 0)
 
-        # grab land cover class if present
+        lr_rgb = _prep_image(lr, bands_rgb)
+        hr_rgb = _prep_image(hr, bands_rgb)
+        lr_rand = _prep_image(lr, bands_rand)
+        hr_rand = _prep_image(hr, bands_rand)
+
+        # land cover class if present
         lc_class = None
         if hasattr(self, "centroids") and "LC_SuperClass" in self.centroids.columns:
             row = self.centroids[self.centroids["lr_path"] == str(lr_path)]
             if not row.empty:
                 lc_class = row["LC_SuperClass"].iloc[0]
 
-        # make figure
-        fig, axs = plt.subplots(1, 2, figsize=(10, 5))
-        axs[0].imshow(lr_rgb)
-        axs[0].axis("off")
-        axs[0].set_title("LR", fontsize=14, weight="bold")
-        subtitle = f"Bands {bands}"
-        if lc_class:
-            subtitle += f"\nLC: {lc_class}"
-        axs[0].set_xlabel(subtitle, fontsize=10)
+        fig, axs = plt.subplots(2, 2, figsize=(10, 8))
 
-        axs[1].imshow(hr_rgb)
-        axs[1].axis("off")
-        axs[1].set_title("HR", fontsize=14, weight="bold")
-        subtitle = f"Bands {bands}"
+        def show(ax, img, title, subtitle=None):
+            ax.imshow(img)
+            ax.axis("off")
+            ax.set_title(title, fontsize=14, weight="bold", pad=12)
+            if subtitle:
+                ax.text(
+                    0.5, -0.08, subtitle,
+                    transform=ax.transAxes,
+                    ha="center", va="top", fontsize=10
+                )
+
+        # top row: RGB
+        show(axs[0,0], lr_rgb, "LR (RGB)")
+        show(axs[0,1], hr_rgb, "HR (RGB)")
+
+        # bottom row: random bands
+        sub = f"Bands {bands_rand}"
         if lc_class:
-            subtitle += f"\nLC: {lc_class}"
-        axs[1].set_xlabel(subtitle, fontsize=10)
+            sub += f" | LC: {lc_class}"
+        show(axs[1,0], lr_rand, "LR (multispec)", sub)
+        show(axs[1,1], hr_rand, "HR (multispec)", sub)
 
         plt.tight_layout()
 
@@ -478,7 +485,7 @@ if __name__ == "__main__":
     ds = SEN2NEON(
         LR_DIR, HR_DIR,
         pattern="*.tif",
-        crop_size_lr=None,   # None for full images; 128 for aligned LR crops (HR crop auto-scales)
+        crop_size_lr=128,   # None for full images; 128 for aligned LR crops (HR crop auto-scales)
         dtype=torch.float32,
         allow_nan=True
     )
