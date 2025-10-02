@@ -1,24 +1,19 @@
+# Imports
 import torch
 
 # 1. Get Data
 from data.datamodule import SEN2NEONDataModule
-
 datamodule = SEN2NEONDataModule(
-    lr_dir="/data3/SEN2NEON/processed/neon_10m_linearized",
-    hr_dir="/data3/SEN2NEON/processed/neon_2.5m_linearized",
-    pattern="*.tif",
-    crop_size_lr=128,
-    dtype=torch.float32,
-    allow_nan=True,
+    csv_path="/data3/SEN2NEON/sen2neon_metadata.csv",
+    root_dir="/data3/SEN2NEON",
+    split="val",            # or None to ignore CSV split
     batch_size=4,
-    shuffle=True,
-    num_workers=4,
-    pin_memory=True,
-)
+    crop_size_lr=64,
+    )
 datamodule.setup(stage="predict") # set up datamodule for prediction
 loader = datamodule.predict_dataloader() # get the prediction dataloader
 batch = next(iter(loader)) # get a batch from the dataloader
-print(batch["lr"].shape, batch["hr"].shape, batch["name"]) # print shapes of lr, hr, and names in the batch
+print(batch["lr"].shape, batch["hr"].shape, batch["meta"]) # print shapes of lr, hr, and names in the batch
 
 # 2. Get Evaluator
 from metrics.validator import SREvaluator

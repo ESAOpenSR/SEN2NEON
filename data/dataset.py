@@ -290,7 +290,7 @@ class SEN2NEON(Dataset):
                         if k in self.df.columns:
                             v = row[k]
                             if isinstance(v, float) and np.isnan(v):
-                                v = None
+                                v = np.nan
                             rec[k] = v
                     f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
