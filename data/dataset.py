@@ -115,12 +115,24 @@ class SEN2NEON(Dataset):
             "LC_superclass_text", "LC_detail_text"
         ]
 
+        # define which should be numeric vs string
+        numeric_keys = {"lon", "lat", "LC_detail_id", "LC_superclass_id"}
+        string_keys  = {"name", "LC_superclass_text", "LC_detail_text"}
+
         meta = {}
         for c in wanted:
             if c in row.index:
                 v = row[c]
-                if isinstance(v, float) and np.isnan(v):
-                    v = None
+                if c in numeric_keys:
+                    try:
+                        v = float(v)
+                    except (TypeError, ValueError):
+                        v = np.nan
+                elif c in string_keys:
+                    if v is None or (isinstance(v, float) and np.isnan(v)):
+                        v = ""
+                    else:
+                        v = str(v)
                 meta[c] = v
 
         sample = {
@@ -228,7 +240,7 @@ class SEN2NEON(Dataset):
         plt.tight_layout()
 
         if out_path is None:
-            name = Path(lr_path).stem
+            name = Path(self.lr_paths[idx]).stem
             out_path = Path.cwd() / f"example_{name}.png"
         out_path = str(Path(out_path))
         fig.savefig(out_path, dpi=200)
@@ -313,3 +325,8 @@ if __name__ == "__main__":
     print(f"Dataset size: {len(ds)} samples")
     batch = next(iter(loader))
     print(f"Batch LR shape: {batch['lr'].shape}, HR shape: {batch['hr'].shape}")
+
+    # iterate over dataset to test output
+    from tqdm import tqdm
+    for i in tqdm(loader):
+        continue

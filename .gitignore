@@ -5,6 +5,7 @@ logs/
 sen2neon_examples/
 model/
 trash/
+visualizations/
 
 # Lighting and Model stuff
 *.ckpt
