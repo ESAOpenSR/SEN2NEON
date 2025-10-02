@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="resources/sen2neon_banner.png" alt="SEN2NEON example" width="100%">
+</p>
+
 # SEN2NEON
 
 A PyTorch-based dataset and evaluation framework for the **SEN2NEON** multispectral super-resolution validation dataset.
@@ -68,7 +72,6 @@ Below: SEN2NEON  LR/HR tile pairs, visualized with RGB and multispectral bands.
 
 <p align="center">
   <img src="resources/ex1.png" alt="SEN2NEON example" width="90%">
-  <img src="resources/ex3.png" alt="SEN2NEON example" width="90%">
 </p>
 
 ---

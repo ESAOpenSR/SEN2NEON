@@ -1,9 +1,6 @@
 import torch
-# /data3/SEN2NEON
-
 
 # 1. Get Data
-from data.dataset import SEN2NEON
 from data.datamodule import SEN2NEONDataModule
 
 datamodule = SEN2NEONDataModule(
