@@ -1,7 +1,11 @@
 import torch
+# /data3/SEN2NEON
+
 
 # 1. Get Data
-from trash.sen2neon_ds import SEN2NEON, SEN2NEONDataModule
+from data.dataset import SEN2NEON
+from data.datamodule import SEN2NEONDataModule
+
 datamodule = SEN2NEONDataModule(
     lr_dir="/data3/SEN2NEON/processed/neon_10m_linearized",
     hr_dir="/data3/SEN2NEON/processed/neon_2.5m_linearized",
