@@ -4,6 +4,7 @@ __pycache__/
 logs/
 sen2neon_examples/
 model/
+trash/
 
 # Lighting and Model stuff
 *.ckpt

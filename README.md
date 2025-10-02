@@ -19,6 +19,7 @@ Below: SEN2NEON  LR/HR tile pairs, visualized with RGB and randomly selected ban
 <p align="center">
   <img src="resources/ex1.png" alt="SEN2NEON example" width="90%">
   <img src="resources/ex2.png" alt="SEN2NEON example" width="90%">
+  <img src="resources/ex3.png" alt="SEN2NEON example" width="90%">
 </p>
 
 ---
