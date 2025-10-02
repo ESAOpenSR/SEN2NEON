@@ -29,7 +29,7 @@ python download_data.py --repo-id simon-donike/SEN2NEON --out-dir ./data/sen2neo
 - This downloads metadata.jsonl, neon_10m_linearized/, neon_2.5m_linearized/, and sen2neon_metadata.csv into ./data/sen2neon.
 - The --use-hf-transfer flag enables faster transfers (optional; requires pip install hf_transfer).
 - Public datasets don’t need a token. For private repos, set HF_TOKEN in your environment.
-- Dataset page: Hugging Face → simon-donike/SEN2NEON
+- Dataset page: Hugging Face → [simon-donike/SEN2NEON](https://huggingface.co/datasets/simon-donike/SEN2NEON)
 
 ### Dataset
 Create Datamodule
