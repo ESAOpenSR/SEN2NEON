@@ -83,11 +83,11 @@ Below: SEN2NEON  LR/HR tile pairs, visualized with RGB and multispectral bands.
 ds.save_example(out_path="example.png")
 ```
 
-# Validation:
+# Validation
 
 This repo’s second core feature is **model validation on the SEN2NEON dataset**. The goal is to compare **independent super‑resolution (SR) models** on a common benchmark with consistent pre/post‑processing, visualizations, and metrics—so results are **apples‑to‑apples**.
 
-## What the pipeline does
+#### What the pipeline does
 
 - **Loads the evaluation split** from `sen2neon_metadata.csv` via the `SEN2NEONDataModule`.
 - **Feeds LR inputs to each SR model** (one by one) and **collects SR predictions** aligned to the HR reference.
@@ -97,7 +97,7 @@ This repo’s second core feature is **model validation on the SEN2NEON dataset*
 
 > Philosophy: keep the loop simple and uniform across models; push model‑specific quirks into small adapters so the validation itself stays comparable and repeatable.
 
-## Models currently wired up
+#### Models currently wired up
 
 You can validate multiple models in one run; each has a small adapter that says **which bands to read** and **how to call its inference**:
 
@@ -108,7 +108,7 @@ You can validate multiple models in one run; each has a small adapter that says 
 
 > Adding a new model is usually just: define its **band selection**, **output band indices**, and the **predict call** (`forward`/`predict_step`). See `models/model_selector.py` for the patterns.
 
-## Metrics & evaluator
+#### Metrics & Evaluator
 
 We use a thin `SREvaluator` wrapper to compute **standard validation metrics** on the SR vs HR pairs (and optionally LR for baselines). Under the hood, it is designed to interoperate with **[opensr‑test]** to keep metrics consistent across projects. Typical metrics include:
 
@@ -119,15 +119,8 @@ We use a thin `SREvaluator` wrapper to compute **standard validation metrics** o
 
 > The evaluator assumes inputs are on comparable scales (we normalize to ~0–1 reflectance before scoring).
 
-## Packages used
 
-- **PyTorch** (core tensor ops & models)
-- **tqdm** (progress bars)
-- **opensr‑test** *(metrics / benchmarking glue)*
-- **rasterio / numpy** *(data I/O in the dataset pipeline)*
-- **matplotlib** *(quick‑look visualizations)*
-
-## Typical usage (conceptual)
+#### Typical usage (conceptual)
 
 1. Select your **evaluation split** in `SEN2NEONDataModule` and create a `predict_dataloader()`.
 2. For each **model** in your list:
