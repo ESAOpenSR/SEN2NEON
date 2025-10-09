@@ -66,7 +66,7 @@ ds = SEN2NEON(
     allow_nan=True
 )
 ```
-## Example
+### Dataset Example
 
 Below: SEN2NEON  LR/HR tile pairs, visualized with RGB and multispectral bands.  
 
@@ -76,14 +76,70 @@ Below: SEN2NEON  LR/HR tile pairs, visualized with RGB and multispectral bands.
 
 ---
 
-### Visualization
+### Dataset Visualization
 
 ```python
 # Save a random LR/HR comparison figure
 ds.save_example(out_path="example.png")
 ```
 
+# Validation:
+
+This repo’s second core feature is **model validation on the SEN2NEON dataset**. The goal is to compare **independent super‑resolution (SR) models** on a common benchmark with consistent pre/post‑processing, visualizations, and metrics—so results are **apples‑to‑apples**.
+
+## What the pipeline does
+
+- **Loads the evaluation split** from `sen2neon_metadata.csv` via the `SEN2NEONDataModule`.
+- **Feeds LR inputs to each SR model** (one by one) and **collects SR predictions** aligned to the HR reference.
+- **Normalizes and aligns bands** so the comparison is fair (e.g., selecting the 20 m bands, optional resizing for models that expect different scales).
+- **Saves quick‑look figures** (LR vs SR vs HR) per batch to help you visually inspect behavior.
+- **Computes validation metrics** with a consistent evaluator (see below) and prints/records results.
+
+> Philosophy: keep the loop simple and uniform across models; push model‑specific quirks into small adapters so the validation itself stays comparable and repeatable.
+
+## Models currently wired up
+
+You can validate multiple models in one run; each has a small adapter that says **which bands to read** and **how to call its inference**:
+
+- **`srgan`** → classic GAN‑based SR baseline; retrained to go from the 6 20m bands to 2.5m (8x factor).
+- **`sen2sr`** → Mamba-based SR model for Sentinel‑2 that takes RGB‑NIR + 20 m bands and outputs enhanced 20 m bands.
+- **`lite_sen2sr`** → a lighter/faster variant of `sen2sr` with the same I/O conventions.
+- **`ldsrs2`** → latent‑diffusion SR for Sentinel‑2 (LDSR‑S2) in unison with SEN2SR Wald-protocol approach.
+
+> Adding a new model is usually just: define its **band selection**, **output band indices**, and the **predict call** (`forward`/`predict_step`). See `models/model_selector.py` for the patterns.
+
+## Metrics & evaluator
+
+We use a thin `SREvaluator` wrapper to compute **standard validation metrics** on the SR vs HR pairs (and optionally LR for baselines). Under the hood, it is designed to interoperate with **[opensr‑test]** to keep metrics consistent across projects. Typical metrics include:
+
+- **Radiometric / Pixel‑wise**: PSNR (via MSE), MAE/MSE‑derived scores.
+- **Perceptual / Structural**: **SSIM** for local luminance/contrast/structure.
+- **Spectral fidelity**: **Spectral Angle Mapper (SAM)** to capture band‑wise angular similarity.
+- **Category/Bucket scores** *(if enabled)*: reflectance/spectral/spatial/synthesis buckets and hallucination/omission/implausible rates (per **opensr‑test**).
+
+> The evaluator assumes inputs are on comparable scales (we normalize to ~0–1 reflectance before scoring).
+
+## Packages used
+
+- **PyTorch** (core tensor ops & models)
+- **tqdm** (progress bars)
+- **opensr‑test** *(metrics / benchmarking glue)*
+- **rasterio / numpy** *(data I/O in the dataset pipeline)*
+- **matplotlib** *(quick‑look visualizations)*
+
+## Typical usage (conceptual)
+
+1. Select your **evaluation split** in `SEN2NEONDataModule` and create a `predict_dataloader()`.
+2. For each **model** in your list:
+   - Load/put on device.
+   - Apply its adapter (band selection, optional scaling).
+   - Generate SR; **save visualizations**; **run metrics** via `SREvaluator`.
+3. Collect/compare results across models.
+
+This keeps the **dataset**, **model adapters**, **visualization**, and **metrics** modular—so you can extend/replace pieces without rewriting the whole loop.
+
 ---
+
 
 ### Land-cover Integration
 
