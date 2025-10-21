@@ -3,7 +3,7 @@ import torch,os
 from tqdm import tqdm
 from utils.plotting import save_batch_visualizations
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0" # set GPU device
+os.environ["CUDA_VISIBLE_DEVICES"] = "2" # set GPU device
 device = "cuda" if torch.cuda.is_available() else "cpu" # set device
 
 
@@ -100,8 +100,9 @@ for model_name in models_configs.keys():
             
             sink.log_batch(model_name, i, batch["meta"], metrics)
             
-        if i==10:
-            break  # for quick testing, remove this line for full validation
+            
+        if i%250==0 and i>0:
+            out = sink.flush()
            
     # Flush after each Model
-    out = sink.flush()  # writes logs/metrics/val_metrics.{parquet,csv}
+    out = sink.flush()  # writes logs/metrics/val_metrics.csv
