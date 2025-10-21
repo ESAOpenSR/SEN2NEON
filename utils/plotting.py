@@ -2,7 +2,7 @@ import os, re
 import torch
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
-from models.SRGAN.utils import normalise_10k
+from models.utils import normalise_10k
 from utils.stretching import convention_stretch
 
 @torch.no_grad()
@@ -96,4 +96,4 @@ def save_batch_visualizations(
         plt.suptitle(f"{model_name} • {mid}")
         plt.savefig(fpath, dpi=150, bbox_inches="tight")
         plt.close(fig)
-        print(f"[saved] {fpath}")
+        #print(f"[saved] {fpath}")

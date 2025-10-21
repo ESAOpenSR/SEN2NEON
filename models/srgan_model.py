@@ -1,6 +1,9 @@
 def get_srgan_model():
-    from models.SRGAN.SRGAN import SRGAN_model
-    model = SRGAN_model(config_file_path="models/SRGAN/config.yaml")
-    model.load_generator(checkpoint_path="models/SRGAN/srgan.ckpt")
-    model.eval()
+    from opensr_srgan import load_inference_model
+    model = load_inference_model("SWIR")
     return model
+
+if __name__=="__main__":
+    print("Testing SRGAN model loading...")
+    model = get_srgan_model()
+    print("SRGAN model loaded successfully.")

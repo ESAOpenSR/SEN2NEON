@@ -165,7 +165,7 @@ We attach land-cover context to every sample so you can stratify results and met
 - [x] Dataset & DataLoader for SEN2NEON
 - [x] Land-cover annotation + legend integration
 - [x] Example visualization
-- [ ] Integrate **SEN2NAIP** and **LDSR-S2** models
-- [ ] Run super-resolution validation on SEN2NEON
+- [x] Integrate **SEN2NAIP** and **LDSR-S2** models
+- [x] Run super-resolution validation on SEN2NEON
 - [ ] Evaluate metrics with **opensr-test**
 

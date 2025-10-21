@@ -1,5 +1,8 @@
 import torch
 import opensr_test
+import lpips
+from kornia.metrics import psnr, ssim
+
 
 class SREvaluator:
     """
@@ -13,7 +16,8 @@ class SREvaluator:
         """
         self.metrics = opensr_test.Metrics(**kwargs)
 
-    def evaluate(self, lr: torch.Tensor, sr: torch.Tensor, hr: torch.Tensor) -> dict:
+
+    def opensr_metrics(self, lr: torch.Tensor, sr: torch.Tensor, hr: torch.Tensor) -> dict:
         """
         Compute metrics for one SR batch.
         
@@ -25,11 +29,45 @@ class SREvaluator:
         Returns:
             dict with metrics (reflectance, spectral, spatial, synthesis, etc.)
         """
-        return self.metrics.compute(lr=lr, sr=sr, hr=hr)
+        opensr_metrics = self.metrics.compute(lr=lr, sr=sr, hr=hr)
 
-        
-            
+        return opensr_metrics
     
+    def compute_normal_metrics(self, lr: torch.Tensor, sr: torch.Tensor, hr: torch.Tensor) -> dict:
+        """
+        Compute standard metrics (PSNR, SSIM, RMSE) for one SR batch.
+
+        Args:
+            lr: low-resolution tensor, shape [C,H,W] or [B,C,H,W]
+            sr: super-resolved tensor, shape [C,H,W] or [B,C,H,W]
+            hr: high-resolution tensor, shape [C,H,W] or [B,C,H,W]
+        Returns:
+            dict with standard metrics (PSNR, SSIM, LPIPS)
+        """        
+        results = {}
+        # PSNR
+        results['PSNR'] = psnr(sr, hr,max_val=1.).item()
+        # SSIM
+        results['SSIM'] = ssim(sr.unsqueeze(0), hr.unsqueeze(0),max_val=1.,window_size=11).mean().item()
+        
+        return results
+    
+    def evaluate(self, lr: torch.Tensor, sr: torch.Tensor, hr: torch.Tensor) -> dict:
+        """
+        Compute all metrics for one SR sample.
+
+        Args:
+            lr: low-resolution tensor, shape [C,H,W]
+            sr: super-resolved tensor, shape [C,H,W]
+            hr: high-resolution tensor, shape [C,H,W]
+
+        Returns:
+            dict with all metrics
+        """
+        metrics = {}
+        metrics.update(self.opensr_metrics(lr, sr, hr))
+        metrics.update(self.compute_normal_metrics(lr, sr, hr))
+        return metrics
 
 if __name__ == "__main__":
     # create once
@@ -41,5 +79,6 @@ if __name__ == "__main__":
     sr = torch.rand(4, 256, 256)
 
     # compute
-    results = evaluator.evaluate(lr, sr, hr)
-    print(results)
+    opensr_metrics = evaluator.opensr_metrics(lr, sr, hr)
+    normal_metrics = evaluator.compute_normal_metrics(lr, sr, hr)
+    all_metrics = evaluator.evaluate(lr, sr, hr)

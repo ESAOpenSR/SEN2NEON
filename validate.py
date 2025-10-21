@@ -20,9 +20,11 @@ datamodule.setup(stage="predict") # set up datamodule for prediction
 loader = datamodule.predict_dataloader() # get the prediction dataloader
 example_batch = next(iter(loader)) # get an example batch
 
-# 2. Get Evaluator
+# 2. Get Evaluator and Metrics Sink
 from metrics.validator import SREvaluator
 evaluator = SREvaluator()
+from metrics.unify_metrics import MetricsSink
+sink = MetricsSink(save_dir="logs/metrics")
 
 # 3 Model Loop
 from models.model_selector import get_model
@@ -87,12 +89,19 @@ for model_name in models_configs.keys():
         lr = lr[:,output_bands,:,:]
 
         # Save Visualizations
-        assert sr.shape == hr.shape, f"SR and HR shapes do not match: {sr.shape} vs {hr.shape}"        
-        save_batch_visualizations(lr, sr, hr, meta=meta, model_name=model_name, out_root="visualizations/inf")
+        assert sr.shape == hr.shape, f"SR and HR shapes do not match: {sr.shape} vs {hr.shape}"      
+        if i<=100: # save visualizations for first 100 batches  
+            save_batch_visualizations(lr, sr, hr, meta=meta, model_name=model_name, out_root="visualizations/inf")
 
         # Calculate Metrics
-        if True:
-            for lr_,sr_,hr_ in zip(lr,sr,hr):
-                results = evaluator.evaluate(lr_, sr_, hr_)
-                print(f"Results for batch {i+1}: {results}")
-        break
+        for lr_,sr_,hr_ in zip(lr,sr,hr):
+            lr_,sr_,hr_ = lr_.cpu(), sr_.cpu(), hr_.cpu()
+            metrics = evaluator.evaluate(lr_, sr_, hr_)
+            
+            sink.log_batch(model_name, i, batch["meta"], metrics)
+            
+        if i==10:
+            break  # for quick testing, remove this line for full validation
+           
+    # Flush after each Model
+    out = sink.flush()  # writes logs/metrics/val_metrics.{parquet,csv}
