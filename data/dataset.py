@@ -318,8 +318,8 @@ if __name__ == "__main__":
     ds = SEN2NEON(
         csv_path=csv_path,
         root_dir=root,
-        crop_size_lr=64,       # or None
         dtype=torch.float32,
+        crop_size_lr=32,
     )
     loader = DataLoader(ds, batch_size=2, shuffle=True, num_workers=4, pin_memory=True)
     print(f"Dataset size: {len(ds)} samples")
@@ -327,6 +327,8 @@ if __name__ == "__main__":
     print(f"Batch LR shape: {batch['lr'].shape}, HR shape: {batch['hr'].shape}")
 
     # iterate over dataset to test output
-    from tqdm import tqdm
-    for i in tqdm(loader):
-        continue
+    #from tqdm import tqdm
+    #for i in tqdm(loader):
+    #    continue
+    
+    ds.save_example()

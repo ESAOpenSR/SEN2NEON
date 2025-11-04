@@ -3,7 +3,7 @@ import torch,os
 from tqdm import tqdm
 from utils.plotting import save_batch_visualizations
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "2" # set GPU device
+os.environ["CUDA_VISIBLE_DEVICES"] = "1" # set GPU device
 device = "cuda" if torch.cuda.is_available() else "cpu" # set device
 
 
@@ -50,7 +50,7 @@ models_configs = { # defines input bands numbers from SEN2 and prediction functi
             "predict": lambda model, x: model.forward(x)
         },
     }
-
+DEBUG = False
 # Evaluation Loop
 for model_name in models_configs.keys():
     # Get Settings
@@ -70,14 +70,14 @@ for model_name in models_configs.keys():
         # extract data from batch and normalize
         lr,hr,meta = batch["lr"],batch["hr"],batch["meta"]
         lr,hr = lr.float()/10000., hr.float()/10000. # normalize to 0-1
-
+        
         # extract bands
         lr = lr[:, bands_selection, :, :].to(device) # Sentinel-2 6-20m bands
         hr = hr[:, bands_selection, :, :].to(device) # Sentinel-2 6-20m bands
-
-        # do interpolations for non-SEN2SR models
+        
         if model_name in ["srgan"]:
-            lr = torch.nn.functional.interpolate(lr, scale_factor=0.5, mode="nearest")
+            # SRGAN outputs 20m bands only, so upsample LR to 20m for metrics
+            lr = torch.nn.functional.interpolate(lr, scale_factor=0.5, mode="bilinear", align_corners=False)        
         
         # Run SR
         with torch.no_grad(): # no grad for inference
@@ -87,20 +87,24 @@ for model_name in models_configs.keys():
         sr = sr[:,output_bands,:,:]
         hr = hr[:,output_bands,:,:]
         lr = lr[:,output_bands,:,:]
-
+        
         # Save Visualizations
         assert sr.shape == hr.shape, f"SR and HR shapes do not match: {sr.shape} vs {hr.shape}"      
-        if i<=100: # save visualizations for first 100 batches  
-            save_batch_visualizations(lr, sr, hr, meta=meta, model_name=model_name, out_root="visualizations/inf")
 
         # Calculate Metrics
         for lr_,sr_,hr_ in zip(lr,sr,hr):
             lr_,sr_,hr_ = lr_.cpu(), sr_.cpu(), hr_.cpu()
             metrics = evaluator.evaluate(lr_, sr_, hr_)
-            
             sink.log_batch(model_name, i, batch["meta"], metrics)
             
-            
+        if i<=100: # save visualizations for first 100 batches  
+            save_batch_visualizations(lr, sr, hr, meta=meta, model_name=model_name, out_root="visualizations/inf2")
+
+        # Debugging: limit number of batches
+        if DEBUG==True:
+            if i==5:
+                break
+        
         if i%250==0 and i>0:
             out = sink.flush()
            

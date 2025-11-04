@@ -96,4 +96,3 @@ def save_batch_visualizations(
         plt.suptitle(f"{model_name} • {mid}")
         plt.savefig(fpath, dpi=150, bbox_inches="tight")
         plt.close(fig)
-        #print(f"[saved] {fpath}")
