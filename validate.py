@@ -2,8 +2,10 @@
 import torch,os
 from tqdm import tqdm
 from utils.plotting import save_batch_visualizations
+from utils.histogram_match import hist_match_to_reference
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1" # set GPU device
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "3" # set GPU device
 device = "cuda" if torch.cuda.is_available() else "cpu" # set device
 
 
@@ -51,7 +53,7 @@ models_configs = { # defines input bands numbers from SEN2 and prediction functi
         },
     }
 # Debugging flags
-DEBUG = True
+DEBUG = False
 
 # Evaluation Loop
 for model_name in models_configs.keys():
@@ -89,6 +91,9 @@ for model_name in models_configs.keys():
         sr = sr[:,output_bands,:,:]
         hr = hr[:,output_bands,:,:]
         lr = lr[:,output_bands,:,:]
+        
+        # hist match the SR output to LR reference
+        sr = hist_match_to_reference(target=sr, reference=lr)
         
         # Save Visualizations
         assert sr.shape == hr.shape, f"SR and HR shapes do not match: {sr.shape} vs {hr.shape}"      
