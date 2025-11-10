@@ -2,6 +2,11 @@
   <img src="resources/sen2neon_banner.png" alt="SEN2NEON example" width="100%">
 </p>
 
+
+<img src="https://github.com/ESAOpenSR/opensr-model/blob/main/resources/opensr_logo.png?raw=true" width="250"/>
+
+
+
 # SEN2NEON
 
 SEN2NEON is a PyTorch-based dataset and evaluation suite for the **SEN2NEON multispectral super-resolution benchmark**. The project aligns Sentinel-2 Level-2A reflectances with co-registered 1 m AVIRIS-NG hyperspectral imagery, creating the first large-scale reference set for the Sentinel-2 20 m bands under real reflectance conditions.
