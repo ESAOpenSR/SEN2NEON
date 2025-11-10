@@ -13,12 +13,12 @@ datamodule = SEN2NEONDataModule(
     csv_path="/data3/SEN2NEON/sen2neon_metadata.csv",
     root_dir="/data3/SEN2NEON",
     split="val",            # or None to ignore CSV split
-    batch_size=4,
+    batch_size=1,
     crop_size_lr=128,
     )
 datamodule.setup(stage="predict") # set up datamodule for prediction
 loader = datamodule.predict_dataloader() # get the prediction dataloader
-example_batch = next(iter(loader)) # get an example batch
+#example_batch = next(iter(loader)) # get an example batch
 
 # 2. Get Evaluator and Metrics Sink
 from metrics.validator import SREvaluator
@@ -50,7 +50,9 @@ models_configs = { # defines input bands numbers from SEN2 and prediction functi
             "predict": lambda model, x: model.forward(x)
         },
     }
-DEBUG = False
+# Debugging flags
+DEBUG = True
+
 # Evaluation Loop
 for model_name in models_configs.keys():
     # Get Settings
@@ -91,22 +93,25 @@ for model_name in models_configs.keys():
         # Save Visualizations
         assert sr.shape == hr.shape, f"SR and HR shapes do not match: {sr.shape} vs {hr.shape}"      
 
-        # Calculate Metrics
-        for lr_,sr_,hr_ in zip(lr,sr,hr):
-            lr_,sr_,hr_ = lr_.cpu(), sr_.cpu(), hr_.cpu()
-            metrics = evaluator.evaluate(lr_, sr_, hr_)
-            sink.log_batch(model_name, i, batch["meta"], metrics)
+        # Calculate Metrics only when not debugging
+        if DEBUG==False:
+            for lr_,sr_,hr_ in zip(lr,sr,hr):
+                lr_,sr_,hr_ = lr_.cpu(), sr_.cpu(), hr_.cpu()
+                metrics = evaluator.evaluate(lr_, sr_, hr_)
+                sink.log_batch(model_name, i, batch["meta"], metrics)
             
         if i<=100: # save visualizations for first 100 batches  
-            save_batch_visualizations(lr, sr, hr, meta=meta, model_name=model_name, out_root="visualizations/inf2")
+            save_batch_visualizations(lr, sr, hr, meta=meta, model_name=model_name, out_root="visualizations/inf4")
 
         # Debugging: limit number of batches
         if DEBUG==True:
-            if i==5:
+            if i==4:
                 break
         
-        if i%250==0 and i>0:
+        # to be sure, flush metrics more often
+        if i%100==0 and i>0 and DEBUG==False:
             out = sink.flush()
            
     # Flush after each Model
-    out = sink.flush()  # writes logs/metrics/val_metrics.csv
+    if DEBUG==False:
+        out = sink.flush()  # writes logs/metrics/val_metrics.csv

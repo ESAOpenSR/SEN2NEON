@@ -167,5 +167,5 @@ We attach land-cover context to every sample so you can stratify results and met
 - [x] Example visualization
 - [x] Integrate **SEN2NAIP** and **LDSR-S2** models
 - [x] Run super-resolution validation on SEN2NEON
-- [ ] Evaluate metrics with **opensr-test**
+- [x] Evaluate metrics with **opensr-test**
 

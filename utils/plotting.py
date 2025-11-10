@@ -96,3 +96,40 @@ def save_batch_visualizations(
         plt.suptitle(f"{model_name} • {mid}")
         plt.savefig(fpath, dpi=150, bbox_inches="tight")
         plt.close(fig)
+
+
+def minmax_scale(array):
+    """Scales a tensor to the range 0-1 using min-max scaling.
+
+    Args:
+        tensor: torch.Tensor
+
+    Returns:
+        torch.Tensor scaled to 0-1
+    """
+    min_val = array.min()
+    max_val = array.max()
+    scaled = (array - min_val) / (max_val - min_val + 1e-8)
+    return scaled
+
+
+def save_png(array, out_path: str):
+    """Saves a single numpy array as PNG using PIL.
+
+    Args:
+        array: np.ndarray (H,W,C) or (C,H,W), values in 0..1
+        out_path: str, output file path
+    """
+    from PIL import Image
+    import numpy as np
+    array = array.numpy()
+    array = array[:3,:,:]
+    array = np.clip(array, 0.0, 1.0)
+    array = minmax_scale(array)
+    arr8 = (array * 256.0).astype(np.uint8)
+
+    if arr8.ndim == 3 and arr8.shape[0] in [1, 3, 4]:
+        arr8 = np.transpose(arr8, (1, 2, 0))  # C,H,W -> H,W,C
+
+    img = Image.fromarray(arr8)
+    img.save(out_path)
