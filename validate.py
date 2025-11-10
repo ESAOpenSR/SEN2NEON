@@ -5,7 +5,7 @@ from utils.plotting import save_batch_visualizations
 from utils.histogram_match import hist_match_to_reference
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "3" # set GPU device
+os.environ["CUDA_VISIBLE_DEVICES"] = "0" # set GPU device
 device = "cuda" if torch.cuda.is_available() else "cpu" # set device
 
 

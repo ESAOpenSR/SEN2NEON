@@ -1,0 +1,16 @@
+huggingface-hub
+kornia
+lpips
+matplotlib
+mlstac
+numpy
+omegaconf
+opensr-model
+opensr-srgan
+opensr-test
+pandas
+Pillow
+rasterio
+requests
+scikit-image
+torch

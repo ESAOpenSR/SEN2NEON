@@ -115,7 +115,6 @@ from data.datamodule import SEN2NEONDataModule
 datamodule = SEN2NEONDataModule(
     csv_path=CSV_PATH,
     root_dir=DATA_ROOT,
-    split=None,            # or "val" if your CSV includes a split column
     batch_size=4,
     num_workers=8,
     crop_size_lr=128,
@@ -124,12 +123,10 @@ datamodule = SEN2NEONDataModule(
 datamodule.setup(stage="predict")
 predict_loader = datamodule.predict_dataloader()
 for batch in predict_loader:
-    lr = batch["lr"].float() / 10_000
-    hr = batch["hr"].float() / 10_000
+    lr = batch["lr"].float()
+    hr = batch["hr"].float()
     break
 ```
-
-The DataModule filters by the `split` column when present, supports deterministic subsetting, and returns batches with the same keys as the base dataset.
 
 ### Visualization helpers
 
@@ -189,13 +186,8 @@ Each metadata row carries detailed (`LC_detail_*`) and superclass (`LC_superclas
 
 ## Citation
 
-If you use SEN2NEON in your research, please cite the preprint:
+If you use SEN2NEON in your research, please cite:
 
 ```
-@article{donike2024sen2neon,
-  title={Quantitative Benchmarking of Multispectral Sentinel-2 Super-Resolution with SEN2NEON},
-  author={Donike, Simon and Aybar, Cesar and Contreras, Julio and Gómez-Chova, Luis},
-  year={2024},
-  journal={arXiv preprint arXiv:XXXX.XXXXX}
-}
+coming soon
 ```
