@@ -4,168 +4,193 @@
 
 # SEN2NEON
 
-A PyTorch-based dataset and evaluation framework for the **SEN2NEON** multispectral super-resolution validation dataset.
+SEN2NEON is a PyTorch-based dataset and evaluation suite for the **SEN2NEON multispectral super-resolution benchmark**. The project aligns Sentinel-2 Level-2A reflectances with co-registered 1 m AVIRIS-NG hyperspectral imagery, creating the first large-scale reference set for the Sentinel-2 20 m bands under real reflectance conditions.
 
-This repository provides:
-- Donwloading functionality for the SEN2NEON-Dataset
-- A flexible **Dataset & DataLoader** for SEN2NEON, pairing LR (10 m) and HR (2.5 m) GeoTIFF tiles.
-- Landcover classification for the patches
-- Visualization helpers (e.g. side-by-side LR/HR samples)
-- Inference and metrics calculation
-- Integration with:
-  - **SEN2NAIP** and **LDSR-S2** models for super-resolution inference.
-  - The [**opensr-test**](https://github.com/ESAOpenSR/opensr-test) library for validation metrics and benchmarking.
+## Highlights
+
+- **Harmonized dataset** with 2,269 spatially aligned tiles (1024×1024 pixels at 2.5 m) spanning 12 Sentinel-2-equivalent bands (B1–B9, B8A, B11–B12).
+- **Land-cover aware metadata** (centroids, fine/coarse classes) for stratified analyses.
+- **Ready-to-use PyTorch Dataset/DataModule** that pairs LR (10 m) and HR (2.5 m) GeoTIFF tiles with consistent scaling and NaN handling.
+- **Validation pipeline** with visualization, histogram matching, and metric logging that integrates OpenSR-Test semantics.
+- **Baseline model adapters** for SEN2SR variants, LDSR-S2, and SRGAN to reproduce the benchmarks from the accompanying paper.
 
 ---
 
+## Dataset at a glance
 
-## Quick Start
+- **Source data:** 1 m AVIRIS-NG hyperspectral imagery harmonized to Sentinel-2A/B spectral response functions, excluding the cirrus band (B10) which is not part of Level-2A reflectance products.
+- **Reference products:** Bilinearly downsampled tiles at 2.5 m (1024×1024) for 8× SR and at 10 m (256×256) for 2× SR experiments, stored as 16-bit integers scaled by 10 000.
+- **Coverage:** 2,269 tiles spanning 127 acquisition dates (2017–2024) and diverse U.S. land-cover types, including forests, grasslands, shrublands, croplands, water, barren land, and built-up areas.
+- **Metadata:** Per-tile CSV/JSON metadata listing relative paths, projected and geographic centroids, and both detailed and superclass land-cover labels for stratified evaluation.
 
-### Download Dataset
-Use the helper script to pull the dataset from the Hugging Face Hub into a local folder (keeps the same layout as on the Hub):
-```CLI
-python download_data.py --repo-id simon-donike/SEN2NEON --out-dir ./data/sen2neon --use-hf-transfer
-```
-- This downloads metadata.jsonl, neon_10m_linearized/, neon_2.5m_linearized/, and sen2neon_metadata.csv into ./data/sen2neon.
-- The --use-hf-transfer flag enables faster transfers (optional; requires pip install hf_transfer).
-- Public datasets don’t need a token. For private repos, set HF_TOKEN in your environment.
-- Dataset page: Hugging Face → [simon-donike/SEN2NEON](https://huggingface.co/datasets/simon-donike/SEN2NEON)
+These characteristics make SEN2NEON suitable for benchmarking super-resolution models that target the Sentinel-2 20 m bands without relying on synthetic degradations.
 
-### Dataset
-Create Datamodule
-```python
-from torch.utils.data import DataLoader
-from data.sen2neon_ds import SEN2NEON, SEN2NEONDataModule
+---
 
-datamodule = SEN2NEONDataModule(
-    lr_dir="/data3/SEN2NEON/processed/neon_10m_linearized",
-    hr_dir="/data3/SEN2NEON/processed/neon_2.5m_linearized",
-    pattern="*2019-06-15*T1*",
-    batch_size=4,
-    allow_nan=False,
-    pin_memory=True,
-)
-datamodule.setup(stage="predict") # set up datamodule for prediction
-loader = datamodule.predict_dataloader() # get the prediction dataloader
-batch = next(iter(loader)) # get a batch from the dataloader
-print(batch["lr"].shape, batch["hr"].shape, batch["name"]) # print shapes of lr, hr, and names in the batch
+## 1. Environment setup
+
+Create a Python environment (≥3.10 recommended) and install the core dependencies:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121  # pick the wheel for your system
+pip install pandas numpy rasterio matplotlib tqdm huggingface_hub hf_transfer opensr_test
 ```
 
+> `hf_transfer` accelerates downloads (optional). Install GPU-specific PyTorch wheels as needed.
 
+---
 
-Create Pytorch-Lightning Dataset Object
+## 2. Download the dataset from Hugging Face
+
+The dataset is hosted on the Hugging Face Hub at [`simon-donike/SEN2NEON`](https://huggingface.co/datasets/simon-donike/SEN2NEON). Use the helper script to keep the on-hub directory layout:
+
+```bash
+python data/download_SEN2NEON.py \
+  --repo-id simon-donike/SEN2NEON \
+  --out-dir ./data/sen2neon \
+  --use-hf-transfer      # optional, enables HF_HUB_ENABLE_HF_TRANSFER
+```
+
+Key options:
+
+- `--all`: download every file in the repository instead of the curated subset.
+- `--no-symlinks`: force real copies instead of symlinks (useful on network storage).
+- Set `HF_TOKEN` if you need to authenticate to private mirrors.
+
+After the command finishes you should see the following structure:
+
+```
+./data/sen2neon
+├── metadata.jsonl
+├── neon_10m_linearized/        # 256×256 LR GeoTIFFs (scaled by 10 000)
+├── neon_2.5m_linearized/       # 1024×1024 HR GeoTIFFs (scaled by 10 000)
+└── sen2neon_metadata.csv
+```
+
+The CSV contains one row per tile with relative paths, land-cover metadata, projected and geographic centroids, and (optionally) split labels.
+
+---
+
+## 3. Working with the Dataset API
+
+### Basic Dataset
+
 ```python
-LR_DIR = "/data3/SEN2NEON/processed/neon_10m_linearized"
-HR_DIR = "/data3/SEN2NEON/processed/neon_2.5m_linearized"
+from data.dataset import SEN2NEON
+import torch
+
+DATA_ROOT = "./data/sen2neon"
+CSV_PATH = f"{DATA_ROOT}/sen2neon_metadata.csv"
 
 ds = SEN2NEON(
-    LR_DIR, HR_DIR,
-    pattern="*.tif",
-    crop_size_lr=128,   # None for full images; 128 for aligned LR crops (HR crop auto-scales)
+    csv_path=CSV_PATH,
+    root_dir=DATA_ROOT,
+    crop_size_lr=128,        # None keeps full tiles; value in LR pixels
     dtype=torch.float32,
-    allow_nan=True
+    allow_nan=False,
 )
+
+sample = ds[0]
+print(sample["lr"].shape, sample["hr"].shape)
+print(sample["meta"])       # dict with name, lon/lat, land-cover labels
 ```
-### Dataset Example
 
-Below: SEN2NEON  LR/HR tile pairs, visualized with RGB and multispectral bands.  
+- **Scaling:** GeoTIFFs store Sentinel-2 reflectance scaled by 10 000 (uint16). Convert to `[0,1]` by dividing by 10 000 before feeding a model.
+- **Cropping:** `crop_size_lr` performs aligned random crops, automatically scaling the HR crop to match the LR patch.
+- **Metadata:** Land-cover detail/superclass IDs and human-readable labels are included for stratified evaluation.
 
-<p align="center">
-  <img src="resources/ex1.png" alt="SEN2NEON example" width="90%">
-</p>
-
----
-
-### Dataset Visualization
+### PyTorch Lightning-style DataModule
 
 ```python
-# Save a random LR/HR comparison figure
-ds.save_example(out_path="example.png")
+from data.datamodule import SEN2NEONDataModule
+
+datamodule = SEN2NEONDataModule(
+    csv_path=CSV_PATH,
+    root_dir=DATA_ROOT,
+    split=None,            # or "val" if your CSV includes a split column
+    batch_size=4,
+    num_workers=8,
+    crop_size_lr=128,
+)
+
+datamodule.setup(stage="predict")
+predict_loader = datamodule.predict_dataloader()
+for batch in predict_loader:
+    lr = batch["lr"].float() / 10_000
+    hr = batch["hr"].float() / 10_000
+    break
 ```
 
-# Validation
+The DataModule filters by the `split` column when present, supports deterministic subsetting, and returns batches with the same keys as the base dataset.
 
-This repo’s second core feature is **model validation on the SEN2NEON dataset**. The goal is to compare **independent super‑resolution (SR) models** on a common benchmark with consistent pre/post‑processing, visualizations, and metrics—so results are **apples‑to‑apples**.
+### Visualization helpers
 
-#### What the pipeline does
+```python
+ds.save_example(out_path="example.png", seed=123)
+```
 
-- **Loads the evaluation split** from `sen2neon_metadata.csv` via the `SEN2NEONDataModule`.
-- **Feeds LR inputs to each SR model** (one by one) and **collects SR predictions** aligned to the HR reference.
-- **Normalizes and aligns bands** so the comparison is fair (e.g., selecting the 20 m bands, optional resizing for models that expect different scales).
-- **Saves quick‑look figures** (LR vs SR vs HR) per batch to help you visually inspect behavior.
-- **Computes validation metrics** with a consistent evaluator (see below) and prints/records results.
-
-> Philosophy: keep the loop simple and uniform across models; push model‑specific quirks into small adapters so the validation itself stays comparable and repeatable.
-
-#### Models currently wired up
-
-You can validate multiple models in one run; each has a small adapter that says **which bands to read** and **how to call its inference**:
-
-- **`srgan`** → classic GAN‑based SR baseline; retrained to go from the 6 20m bands to 2.5m (8x factor).
-- **`sen2sr`** → Mamba-based SR model for Sentinel‑2 that takes RGB‑NIR + 20 m bands and outputs enhanced 20 m bands.
-- **`lite_sen2sr`** → a lighter/faster variant of `sen2sr` with the same I/O conventions.
-- **`ldsrs2`** → latent‑diffusion SR for Sentinel‑2 (LDSR‑S2) in unison with SEN2SR Wald-protocol approach.
-
-> Adding a new model is usually just: define its **band selection**, **output band indices**, and the **predict call** (`forward`/`predict_step`). See `models/model_selector.py` for the patterns.
-
-#### Metrics & Evaluator
-
-We use a thin `SREvaluator` wrapper to compute **standard validation metrics** on the SR vs HR pairs (and optionally LR for baselines). Under the hood, it is designed to interoperate with **[opensr‑test]** to keep metrics consistent across projects. Typical metrics include:
-
-- **Radiometric / Pixel‑wise**: PSNR (via MSE), MAE/MSE‑derived scores.
-- **Perceptual / Structural**: **SSIM** for local luminance/contrast/structure.
-- **Spectral fidelity**: **Spectral Angle Mapper (SAM)** to capture band‑wise angular similarity.
-- **Category/Bucket scores** *(if enabled)*: reflectance/spectral/spatial/synthesis buckets and hallucination/omission/implausible rates (per **opensr‑test**).
-
-> The evaluator assumes inputs are on comparable scales (we normalize to ~0–1 reflectance before scoring).
-
-
-#### Typical usage (conceptual)
-
-1. Select your **evaluation split** in `SEN2NEONDataModule` and create a `predict_dataloader()`.
-2. For each **model** in your list:
-   - Load/put on device.
-   - Apply its adapter (band selection, optional scaling).
-   - Generate SR; **save visualizations**; **run metrics** via `SREvaluator`.
-3. Collect/compare results across models.
-
-This keeps the **dataset**, **model adapters**, **visualization**, and **metrics** modular—so you can extend/replace pieces without rewriting the whole loop.
+This saves a 2×2 panel containing RGB and random-band comparisons between LR and HR tiles.
 
 ---
 
+## 4. Validation pipeline
 
-### Land-cover Integration
+`validate.py` demonstrates how to reproduce the benchmarking experiments:
 
-We attach land-cover context to every sample so you can stratify results and metrics by environment type.
+1. **Load data:** instantiate `SEN2NEONDataModule`, call `setup()`, and iterate over the prediction loader.
+2. **Select models:** `models/model_selector.py` exposes adapters for `srgan`, `sen2sr`, `lite_sen2sr`, and `ldsrs2`, defining their input bands and prediction calls.
+3. **Run inference:** normalize inputs to `[0,1]`, slice the requested bands, and call the adapter’s `predict` function in `torch.no_grad()` mode.
+4. **Post-process:** select the SR band subset, apply histogram matching to the LR reference, and ensure SR/HR tensors align.
+5. **Score results:** `metrics.validator.SREvaluator` computes PSNR, SSIM, SAM, and OpenSR-Test metrics; `MetricsSink` logs CSV summaries while optional quick-look figures are saved to disk.
 
-- Source: Land-cover labels are derived from an external categorical land-cover raster covering the study area (e.g., national/regional LC map). For each LR patch footprint, we reproject the bounds to the LC raster’s CRS and take the mode (most frequent class) over that window.
-
-- What’s stored (in `sen2neon_metadata.csv` and mirrored in `metadata.jsonl`):
-  - LC_detail_id -> numeric code of the fine class (e.g., 41 = Deciduous Forest).
-  - LC_detail_text -> human-readable fine class label (e.g., "Deciduous").
-  - LC_superclass_id -> numeric code of a coarser super-group (e.g., 40 = Forest, 50 = Built-up).
-  - LC_superclass_text -> human-readable super-group label (e.g., "Forest", "Built-up").
-  - lon, lat -> centroid in WGS84 for quick mapping/filtering.
-
-- Why this helps:
-  - Stratify metrics (PSNR/SSIM/spectral/etc.) by LC_superclass_text or LC_detail_text (e.g., compare performance in Forest vs Built-up).
-  - Enable balanced evaluation/sampling by land-cover category.
-  - Map/visualize geographic distribution of classes via lon/lat.
-
-- Notes:
-  - Some rows may have missing LC values if the footprint falls outside valid LC coverage (like Alaska, Hawaii and Puerto Rico) or into NoData; those appear as null in JSON / empty in CSV.
-  - The class mapping (detail <-> super-group <-> text) comes from the LC legend used during preprocessing and is already normalized into the fields above—no extra joins needed.
-
-
+To evaluate your own model, add a new entry to `models_configs` describing the required input bands, the index positions of the 20 m outputs, and a callable that performs inference. The rest of the loop remains unchanged.
 
 ---
 
-## Roadmap
+## 5. Benchmark performance
 
-- [x] Dataset & DataLoader for SEN2NEON
-- [x] Land-cover annotation + legend integration
-- [x] Example visualization
-- [x] Integrate **SEN2NAIP** and **LDSR-S2** models
-- [x] Run super-resolution validation on SEN2NEON
-- [x] Evaluate metrics with **opensr-test**
+The paper reports the following validation metrics on the SEN2NEON evaluation split (mean ± std):
 
+| Model            | PSNR ↑ | SSIM ↑ | SAM ↓ | Refl. Consistency ↓ | Spectral Consistency ↓ | Spatial Consistency ↓ |
+|------------------|-------:|-------:|------:|---------------------:|------------------------:|-----------------------:|
+| S2SR-LDSR-S2     | 31.98 ± 4.21 | 0.78 ± 0.12 | 0.05 ± 0.03 | 0.0087 ± 0.000 | 2.20 ± 1.33 | 0.019 ± 0.05 |
+| **S2SR-Lite**    | **32.56 ± 3.28** | 0.80 ± 0.10 | **0.04 ± 0.02** | **0.0054 ± 0.000** | **1.52 ± 0.91** | **0.004 ± 0.02** |
+| S2SR-Mamba       | 32.44 ± 4.18 | **0.81 ± 0.10** | 0.05 ± 0.03 | 0.0081 ± 0.000 | 2.20 ± 1.25 | 0.006 ± 0.04 |
+| SRGAN            | 31.40 ± 3.85 | 0.73 ± 0.13 | 0.05 ± 0.03 | 0.0067 ± 0.000 | **1.21 ± 0.79** | 0.020 ± 0.03 |
+
+- Frequency-transfer approaches (SEN2SR variants) deliver the best balance between sharpness and spectral fidelity.
+- Diffusion-based S2SR-LD introduces additional detail but at the cost of hallucinations, while SRGAN favors perceptual sharpness with weaker physical consistency.
+
+---
+
+## 6. Land-cover-aware analysis
+
+Each metadata row carries detailed (`LC_detail_*`) and superclass (`LC_superclass_*`) labels derived from a categorical land-cover raster. Use them to filter tiles, compute stratified metrics, or balance batches across ecosystems. Missing values are stored as empty strings/NaNs and can be dropped or imputed downstream.
+
+---
+
+## 7. Roadmap
+
+- [x] Release dataset & dataloaders
+- [x] Integrate land-cover annotations
+- [x] Provide visualization utilities
+- [x] Add SEN2SR / LDSR-S2 / SRGAN adapters
+- [x] Publish benchmarking pipeline and metrics integration
+
+---
+
+## Citation
+
+If you use SEN2NEON in your research, please cite the preprint:
+
+```
+@article{donike2024sen2neon,
+  title={Quantitative Benchmarking of Multispectral Sentinel-2 Super-Resolution with SEN2NEON},
+  author={Donike, Simon and Aybar, Cesar and Contreras, Julio and Gómez-Chova, Luis},
+  year={2024},
+  journal={arXiv preprint arXiv:XXXX.XXXXX}
+}
+```
