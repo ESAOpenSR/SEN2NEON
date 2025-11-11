@@ -7,7 +7,7 @@
 
 
 
-# SEN2NEON
+# SEN2NEON - Dataset for Multispectral Sentinel-2 Super-Resolution 
 
 SEN2NEON is a PyTorch-based dataset and evaluation suite for the **SEN2NEON multispectral super-resolution benchmark**. The project aligns Sentinel-2 Level-2A reflectances with co-registered 1 m AVIRIS-NG hyperspectral imagery, creating the first large-scale reference set for the Sentinel-2 20 m bands under real reflectance conditions.
 
