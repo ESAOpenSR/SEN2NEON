@@ -2,6 +2,9 @@ import torch
 import opensr_test
 import lpips
 from kornia.metrics import psnr, ssim
+import numpy as np
+from typing import Tuple
+
 
 class SREvaluator:
     """
@@ -14,7 +17,6 @@ class SREvaluator:
         kwargs are passed to opensr_test.Metrics() constructor.
         """
         self.metrics = opensr_test.Metrics(**kwargs)
-
 
     def opensr_metrics(self, lr: torch.Tensor, sr: torch.Tensor, hr: torch.Tensor) -> dict:
         """
@@ -29,43 +31,73 @@ class SREvaluator:
             dict with metrics (reflectance, spectral, spatial, synthesis, etc.)
         """
         opensr_metrics = self.metrics.compute(lr=lr, sr=sr, hr=hr)
-
         return opensr_metrics
     
     def compute_normal_metrics(self, lr: torch.Tensor, sr: torch.Tensor, hr: torch.Tensor) -> dict:
         """
         Compute standard metrics (PSNR, SSIM, SAM) for one SR batch.
         Assumes inputs in [0,1].
-        """
-        sr_b = self._ensure_bchw(sr)
-        hr_b = self._ensure_bchw(hr)
 
-        # PSNR (scalar)
+        Returns:
+            dict with:
+              - PSNR, SSIM, SAM (scalar over all bands)
+              - PSNR_b{i}, SSIM_b{i} per band i
+        """
+        sr_b = self._ensure_bchw(sr)  # [B,C,H,W]
+        hr_b = self._ensure_bchw(hr)  # [B,C,H,W]
+        B, C, H, W = sr_b.shape
+
+        # ---- scalar PSNR over all bands ----
         psnr_val = psnr(sr_b, hr_b, max_val=1.0)
         if psnr_val.dim() > 0:
             psnr_val = psnr_val.mean()
         psnr_val = torch.nan_to_num(psnr_val, nan=0.0, posinf=0.0, neginf=0.0)
 
-        # SSIM expects [B,C,H,W]
+        # ---- scalar SSIM over all bands ----
         ssim_val = ssim(sr_b, hr_b, max_val=1.0, window_size=11)
         if ssim_val.dim() > 0:
             ssim_val = ssim_val.mean()
         ssim_val = torch.nan_to_num(ssim_val, nan=0.0, posinf=0.0, neginf=0.0)
         
-        # SAM (radians)
+        # ---- SAM (scalar) ----
         sam_val = self.sam(sr_b, hr_b)  # already sanitized
 
-        return {
+        metrics = {
             "PSNR": float(psnr_val),
             "SSIM": float(ssim_val),
             "SAM": float(sam_val),
         }
+
+        # ------------------------------------------------------------------
+        # Per-band PSNR / SSIM: PSNR_b0, PSNR_b1, ..., SSIM_b0, SSIM_b1, ...
+        # ------------------------------------------------------------------
+        for c in range(C):
+            # single-band tensors [B,1,H,W]
+            sr_c = sr_b[:, c:c+1]
+            hr_c = hr_b[:, c:c+1]
+
+            # PSNR per band
+            psnr_c = psnr(sr_c, hr_c, max_val=1.0)
+            if psnr_c.dim() > 0:
+                psnr_c = psnr_c.mean()
+            psnr_c = torch.nan_to_num(psnr_c, nan=0.0, posinf=0.0, neginf=0.0)
+            metrics[f"PSNR_b{c}"] = float(psnr_c)
+
+            # SSIM per band
+            ssim_c = ssim(sr_c, hr_c, max_val=1.0, window_size=11)
+            if ssim_c.dim() > 0:
+                ssim_c = ssim_c.mean()
+            ssim_c = torch.nan_to_num(ssim_c, nan=0.0, posinf=0.0, neginf=0.0)
+            metrics[f"SSIM_b{c}"] = float(ssim_c)
+
+        return metrics
     
     @torch.no_grad()
     def evaluate(self, lr: torch.Tensor, sr: torch.Tensor, hr: torch.Tensor) -> dict:
         """
         Compute all metrics for one SR sample.
         Returns: dict with OpenSR + standard metrics (PSNR, SSIM, SAM)
+                 plus per-band PSNR_b{i}, SSIM_b{i}.
         """
         metrics = {}
         metrics.update(self.opensr_metrics(lr, sr, hr))
@@ -87,8 +119,6 @@ class SREvaluator:
             return x
         else:
             raise ValueError(f"Expected 3D or 4D tensor, got shape {tuple(x.shape)}")
-
-
     
     @torch.no_grad()
     def sam(self, sr: torch.Tensor, hr: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
@@ -127,19 +157,4 @@ class SREvaluator:
 
         out = per_sample.mean()                      # radians (tensor scalar)
         out = torch.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
-        #out = torch.rad2deg(out)                     # degrees
         return float(out.item())
-
-if __name__ == "__main__":
-    # create once
-    evaluator = SREvaluator()
-
-    # your data
-    lr = torch.rand(4, 64, 64)
-    hr = torch.rand(4, 256, 256)
-    sr = torch.rand(4, 256, 256)
-
-    # compute
-    opensr_metrics = evaluator.opensr_metrics(lr, sr, hr)
-    normal_metrics = evaluator.compute_normal_metrics(lr, sr, hr)
-    all_metrics = evaluator.evaluate(lr, sr, hr)
