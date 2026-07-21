@@ -189,5 +189,13 @@ Each metadata row carries detailed (`LC_detail_*`) and superclass (`LC_superclas
 If you use SEN2NEON in your research, please cite:
 
 ```
-coming soon
-```
+@article{article,
+author = {Donike, Simon and Aybar, Cesar and Contreras, Julio and Gómez-Chova, Luis},
+year = {2026},
+month = {01},
+pages = {6013905-6013905},
+title = {SEN2NEON: Enabling Quantitative Benchmarking of Sentinel-2 Superresolution for All Multispectral Bands},
+volume = {23},
+journal = {IEEE Geoscience and Remote Sensing Letters},
+doi = {10.1109/LGRS.2026.3703947}
+}```
