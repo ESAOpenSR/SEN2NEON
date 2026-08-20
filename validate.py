@@ -12,9 +12,9 @@ device = "cuda" if torch.cuda.is_available() else "cpu" # set device
 # 1. Get Data
 from data.datamodule import SEN2NEONDataModule
 datamodule = SEN2NEONDataModule(
-    csv_path="/data3/SEN2NEON/sen2neon_metadata.csv",
+    csv_path="/data3/SEN2NEON/metadata.csv",
     root_dir="/data3/SEN2NEON",
-    split="val",            # or None to ignore CSV split
+    split="validation",     # or None to ignore CSV split
     batch_size=1,
     crop_size_lr=128,
     )
