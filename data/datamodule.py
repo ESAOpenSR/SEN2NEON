@@ -9,7 +9,7 @@ class SEN2NEONDataModule:
         csv_path: str,
         root_dir: str,
         *,
-        split: str | None = "val",     # set to None to use all rows
+        split: str | None = "validation",  # set to None to use all rows
         subset: int | None = None,     # take first N after filtering
         batch_size: int = 4,
         shuffle: bool = True,
@@ -70,13 +70,12 @@ class SEN2NEONDataModule:
         
 if __name__ == "__main__":
     dm = SEN2NEONDataModule(
-    csv_path="/data3/SEN2NEON/sen2neon_metadata.csv",
+    csv_path="/data3/SEN2NEON/metadata.csv",
     root_dir="/data3/SEN2NEON",
-    split="val",            # or None to ignore CSV split
+    split="validation",     # or None to ignore CSV split
     batch_size=4,
     crop_size_lr=64,
     )
     dm.setup(stage="predict")
     loader = dm.predict_dataloader()
     batch = next(iter(loader))
-

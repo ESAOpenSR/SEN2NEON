@@ -30,6 +30,15 @@ class SEN2NEON(Dataset):
         else:
             raise ValueError("CSV must have columns ('lr','hr') or ('lr_path','hr_path').")
 
+        legacy_lr = self.df[self.lr_col].astype(str).str.startswith("neon_10m_linearized/")
+        if legacy_lr.any():
+            raise ValueError(
+                "This metadata references the obsolete NEON-derived "
+                "'neon_10m_linearized' LR product. Download the corrected "
+                "metadata and 's2_l2a_10m' files from "
+                "https://huggingface.co/datasets/isp-uv-es/SEN2NEON/"
+            )
+
         self.crop_size_lr = crop_size_lr
         self.dtype = dtype
         self.allow_nan = allow_nan
@@ -111,13 +120,23 @@ class SEN2NEON(Dataset):
         wanted = [
             "name",
             "lon", "lat",
+            "centroid_lon", "centroid_lat",
             "LC_detail_id", "LC_superclass_id",
-            "LC_superclass_text", "LC_detail_text"
+            "LC_superclass_text", "LC_detail_text",
+            "land_cover_detail_id", "land_cover_superclass_id",
+            "land_cover_superclass", "land_cover_detail",
         ]
 
         # define which should be numeric vs string
-        numeric_keys = {"lon", "lat", "LC_detail_id", "LC_superclass_id"}
-        string_keys  = {"name", "LC_superclass_text", "LC_detail_text"}
+        numeric_keys = {
+            "lon", "lat", "centroid_lon", "centroid_lat",
+            "LC_detail_id", "LC_superclass_id",
+            "land_cover_detail_id", "land_cover_superclass_id",
+        }
+        string_keys = {
+            "name", "LC_superclass_text", "LC_detail_text",
+            "land_cover_superclass", "land_cover_detail",
+        }
 
         meta = {}
         for c in wanted:
@@ -252,7 +271,7 @@ class SEN2NEON(Dataset):
             self,
             out_path: str | Path,
             *,
-            split: str = "val",
+            split: str = "validation",
             extra_keys: list[str] | None = None,
         ) -> str:
             """
@@ -263,7 +282,7 @@ class SEN2NEON(Dataset):
                 "id": <stem of lr>,
                 "lr": <relative path from CSV>,
                 "hr": <relative path from CSV>,
-                "split": "val",
+                "split": "validation",
                 "name": ...,
                 "lon": ..., "lat": ...,
                 "LC_detail_id": ..., "LC_superclass_id": ...,
@@ -272,7 +291,7 @@ class SEN2NEON(Dataset):
 
             Args:
             out_path: where to write metadata.jsonl
-            split: split tag to assign to all samples (default: "val")
+            split: split tag to assign to all samples (default: "validation")
             extra_keys: optional list of more CSV columns to include (if present)
             """
             lr_col, hr_col = self.lr_col, self.hr_col
@@ -312,8 +331,8 @@ class SEN2NEON(Dataset):
 
 # ---------- testing ----------
 if __name__ == "__main__":
-    csv_path = "/data3/SEN2NEON/sen2neon_metadata.csv"  # your slim/clean CSV is fine too
-    root     = "/data3/SEN2NEON/"   # dataset root (contains neon_10m_linearized/, neon_2.5m_linearized/)
+    csv_path = "/data3/SEN2NEON/metadata.csv"
+    root = "/data3/SEN2NEON/"  # contains s2_l2a_10m/ and neon_2.5m_linearized/
 
     ds = SEN2NEON(
         csv_path=csv_path,

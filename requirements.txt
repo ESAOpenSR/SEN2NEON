@@ -1,4 +1,5 @@
 huggingface-hub
+datasets
 kornia
 lpips
 matplotlib
