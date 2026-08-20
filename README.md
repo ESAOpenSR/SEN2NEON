@@ -200,6 +200,22 @@ Each metadata row carries detailed (`LC_detail_*`) and superclass (`LC_superclas
 
 ---
 
+## Compare Hugging Face LR to Planetary Computer Sentinel-2
+
+Standalone check that a `neon_10m_linearized` tile matches same-date Sentinel-2 L2A from Microsoft Planetary Computer. It downloads the HF sample if needed, warps PC S2 onto the HF grid, and writes metrics plus RGB figures (LR vs PC, zoom, LR/HR/PC).
+
+```bash
+pip install numpy rasterio matplotlib pandas pystac-client planetary-computer huggingface_hub
+
+python compare_sen2neon_lr_vs_planetary_computer.py \
+  --sample-id 2018_MLBS_3__1_1 \
+  --out-dir ./out
+```
+
+Default sample `2018_MLBS_3__1_1` has no nodata holes. Override with `--sample-id`. Use `--no-download` if the GeoTIFFs are already local. Needs network (Hugging Face, GitHub metadata, Planetary Computer).
+
+---
+
 ## Citation
 
 If you use SEN2NEON in your research, please cite:

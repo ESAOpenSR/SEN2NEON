@@ -11,6 +11,8 @@ opensr-srgan
 opensr-test
 pandas
 Pillow
+planetary-computer
+pystac-client
 rasterio
 requests
 scikit-image
