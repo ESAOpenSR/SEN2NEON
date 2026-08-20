@@ -11,11 +11,13 @@
 
 SEN2NEON is a PyTorch-based dataset and evaluation suite for the **SEN2NEON multispectral super-resolution benchmark**. The project aligns Sentinel-2 Level-2A reflectances with co-registered 1 m AVIRIS-NG hyperspectral imagery, creating the first large-scale reference set for the Sentinel-2 20 m bands under real reflectance conditions.
 
+> **Release correction — 20 August 2026:** A previous dataset upload mistakenly provided a linearized 10 m NEON product as `lr`. This was corrected on 20 August 2026. The canonical LR files are now in `s2_l2a_10m/` and contain the original Sentinel-2 observations exported through Google Earth Engine.
+
 ## Highlights
 
 - **Harmonized dataset** with 2,269 spatially aligned tiles (1024×1024 pixels at 2.5 m) spanning 12 Sentinel-2-equivalent bands (B1–B9, B8A, B11–B12).
 - **Land-cover aware metadata** (centroids, fine/coarse classes) for stratified analyses.
-- **Ready-to-use PyTorch Dataset/DataModule** that pairs LR (10 m) and HR (2.5 m) GeoTIFF tiles with consistent scaling and NaN handling.
+- **Ready-to-use PyTorch Dataset/DataModule** that pairs observed Sentinel-2 LR (all bands on an aligned 10 m grid) and NEON-derived HR (2.5 m) GeoTIFF tiles.
 - **Validation pipeline** with visualization, histogram matching, and metric logging that integrates OpenSR-Test semantics.
 - **Baseline model adapters** for SEN2SR variants, LDSR-S2, and SRGAN to reproduce the benchmarks from the accompanying paper.
 
@@ -23,9 +25,9 @@ SEN2NEON is a PyTorch-based dataset and evaluation suite for the **SEN2NEON mult
 
 ## Dataset at a glance
 
-- **Source data:** 1 m AVIRIS-NG hyperspectral imagery harmonized to Sentinel-2A/B spectral response functions, excluding the cirrus band (B10) which is not part of Level-2A reflectance products.
-- **Reference products:** Bilinearly downsampled tiles at 2.5 m (1024×1024) for 8× SR and at 10 m (256×256) for 2× SR experiments, stored as 16-bit integers scaled by 10 000.
-- **Coverage:** 2,269 tiles spanning 127 acquisition dates (2017–2024) and diverse U.S. land-cover types, including forests, grasslands, shrublands, croplands, water, barren land, and built-up areas.
+- **LR product:** Original Sentinel-2 Level-2A observations exported from GEE `COPERNICUS/S2_SR_HARMONIZED`. The 12 bands are stored as a common 10 m, 256×256 aligned stack; this convenience product does not preserve separate native 10/20/60 m grids.
+- **HR product:** 1 m AVIRIS-NG hyperspectral imagery harmonized to Sentinel-2A/B spectral response functions and provided at 2.5 m (1024×1024), excluding B10.
+- **Coverage:** 2,269 tiles from 119 NEON acquisition assets (110 calendar dates, 2018–2024), spanning forests, grasslands, shrublands, croplands, water, barren land, and built-up areas.
 - **Metadata:** Per-tile CSV/JSON metadata listing relative paths, projected and geographic centroids, and both detailed and superclass land-cover labels for stratified evaluation.
 
 These characteristics make SEN2NEON suitable for benchmarking super-resolution models that target the Sentinel-2 20 m bands without relying on synthetic degradations.
@@ -41,10 +43,10 @@ python -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121  # pick the wheel for your system
-pip install pandas numpy rasterio matplotlib tqdm huggingface_hub hf_transfer opensr_test
+pip install pandas numpy rasterio matplotlib tqdm huggingface_hub datasets opensr_test
 ```
 
-> `hf_transfer` accelerates downloads (optional). Install GPU-specific PyTorch wheels as needed.
+> Recent `huggingface_hub` releases use `hf-xet` for large-file transfers. Install GPU-specific PyTorch wheels as needed.
 
 ---
 
@@ -56,26 +58,40 @@ The dataset is hosted on the Hugging Face Hub at [`simon-donike/SEN2NEON`](https
 python data/download_SEN2NEON.py \
   --repo-id simon-donike/SEN2NEON \
   --out-dir ./data/sen2neon \
-  --use-hf-transfer      # optional, enables HF_HUB_ENABLE_HF_TRANSFER
+  --high-performance     # optional, enables high-performance hf-xet transfers
 ```
 
 Key options:
 
 - `--all`: download every file in the repository instead of the curated subset.
-- `--no-symlinks`: force real copies instead of symlinks (useful on network storage).
+- `--high-performance`: enable `HF_XET_HIGH_PERFORMANCE` for faster transfers.
 - Set `HF_TOKEN` if you need to authenticate to private mirrors.
 
 After the command finishes you should see the following structure:
 
 ```
 ./data/sen2neon
-├── metadata.jsonl
-├── neon_10m_linearized/        # 256×256 LR GeoTIFFs (scaled by 10 000)
-├── neon_2.5m_linearized/       # 1024×1024 HR GeoTIFFs (scaled by 10 000)
-└── sen2neon_metadata.csv
+├── metadata.parquet            # default Hugging Face dataset index
+├── metadata.jsonl              # portable equivalent index
+├── metadata.csv                # CSV index used by the PyTorch loader
+├── s2_l2a_10m/                 # canonical observed S2 LR, 12×256×256
+├── s2_l2a_10m.sha256           # checksums for all canonical LR TIFFs
+├── neon_2.5m_linearized/       # NEON-derived HR, 12×1024×1024
+└── DATASET_RELEASE_NOTES.md
 ```
 
-The CSV contains one row per tile with relative paths, land-cover metadata, projected and geographic centroids, and (optionally) split labels.
+The metadata contains one row per tile with relative paths, exact S2 and NEON asset provenance, acquisition times, LR source/grid fields, land-cover metadata, and projected/geographic centroids. The historical `neon_10m_linearized` product is NEON-derived and is not the canonical LR.
+
+Load the lightweight metadata index without downloading all GeoTIFFs:
+
+```python
+from datasets import load_dataset
+
+index = load_dataset("simon-donike/SEN2NEON", split="validation")
+print(index[0]["lr"], index[0]["hr"])
+```
+
+The `lr` and `hr` fields remain relative paths because PIL cannot faithfully decode these 12-band GeoTIFFs. Use `rasterio` through the PyTorch loader below, or download individual paths with `huggingface_hub.hf_hub_download`.
 
 ---
 
@@ -88,7 +104,7 @@ from data.dataset import SEN2NEON
 import torch
 
 DATA_ROOT = "./data/sen2neon"
-CSV_PATH = f"{DATA_ROOT}/sen2neon_metadata.csv"
+CSV_PATH = f"{DATA_ROOT}/metadata.csv"
 
 ds = SEN2NEON(
     csv_path=CSV_PATH,

@@ -3,13 +3,12 @@
 download_data.py
 ----------------
 Download the SEN2NEON dataset from Hugging Face into a local folder, preserving
-the on-hub layout (metadata.jsonl, neon_10m_linearized/, neon_2.5m_linearized/).
+the on-hub layout (metadata indexes, s2_l2a_10m/, neon_2.5m_linearized/).
 
 Usage:
   python download_data.py \
     --repo-id simon-donike/SEN2NEON \
-    --out-dir ./data/sen2neon_val \
-    --use-hf-transfer
+    --out-dir ./data/sen2neon_val
 
 Notes:
 - Public datasets don't require a token. If your repo is private, set HF_TOKEN.
@@ -23,11 +22,15 @@ from pathlib import Path
 from huggingface_hub import snapshot_download
 
 DEFAULT_PATTERNS = [
+    ".gitattributes",
     "metadata.jsonl",
+    "metadata.csv",
+    "metadata.parquet",
     "README.md",
-    "neon_10m_linearized/**",
+    "DATASET_RELEASE_NOTES.md",
+    "s2_l2a_10m.sha256",
+    "s2_l2a_10m/**",
     "neon_2.5m_linearized/**",
-    "sen2neon_metadata.csv",
 ]
 
 def parse_args():
@@ -38,17 +41,15 @@ def parse_args():
                    help="Local folder to populate with the dataset.")
     p.add_argument("--all", action="store_true",
                    help="Download all files in the repository (ignore allow_patterns).")
-    p.add_argument("--no-symlinks", action="store_true",
-                   help="Disable symlinks; copy files instead (uses more disk space).")
-    p.add_argument("--use-hf-transfer", action="store_true",
-                   help="Enable hf_transfer for faster downloads (pip install hf_transfer).")
+    p.add_argument("--high-performance", action="store_true",
+                   help="Enable high-performance hf-xet transfers.")
     return p.parse_args()
 
 def main():
     args = parse_args()
 
-    if args.use_hf_transfer:
-        os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+    if args.high_performance:
+        os.environ["HF_XET_HIGH_PERFORMANCE"] = "1"
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -63,15 +64,15 @@ def main():
         repo_id=args.repo_id,
         repo_type="dataset",
         local_dir=str(out_dir),
-        local_dir_use_symlinks=not args.no_symlinks,
         allow_patterns=allow_patterns,
         ignore_patterns=None,
         # token is auto-read from HF_TOKEN if needed
     )
 
     # Quick sanity info
-    meta = out_dir / "metadata.jsonl"
-    lr_dir = out_dir / "neon_10m_linearized"
+    meta = out_dir / "metadata.parquet"
+    csv_path = out_dir / "metadata.csv"
+    lr_dir = out_dir / "s2_l2a_10m"
     hr_dir = out_dir / "neon_2.5m_linearized"
 
     n_lr = len(list(lr_dir.glob("**/*.tif"))) if lr_dir.exists() else 0
@@ -79,15 +80,16 @@ def main():
 
     print(f"[OK] Local dataset root : {out_dir}")
     print(f"[OK] Cached snapshot    : {local_path}")
-    print(f"[OK] metadata.jsonl     : {'found' if meta.exists() else 'missing'}")
+    print(f"[OK] metadata.parquet   : {'found' if meta.exists() else 'missing'}")
     print(f"[OK] LR TIFFs            : {n_lr}")
     print(f"[OK] HR TIFFs            : {n_hr}")
 
     print("\nNext steps:")
-    print("  # Example: instantiate your CSVPairedTiffDataset")
-    print(f"  from your.module import CSVPairedTiffDataset")
-    print(f"  ds = CSVPairedTiffDataset(csv_path='{out_dir}/sen2neon_metadata.csv', root_dir='{out_dir}')")
-    print("  # or use metadata.jsonl with Hugging Face 'datasets' if preferred.")
+    if n_lr != n_hr:
+        raise RuntimeError(f"Incomplete download: found {n_lr} LR and {n_hr} HR TIFFs")
+    print("  from data.dataset import SEN2NEON")
+    print(f"  ds = SEN2NEON(csv_path='{csv_path}', root_dir='{out_dir}')")
+    print("  # Or load the metadata index directly with Hugging Face datasets.")
 
 if __name__ == "__main__":
     try:
