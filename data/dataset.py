@@ -36,7 +36,7 @@ class SEN2NEON(Dataset):
                 "This metadata references the obsolete NEON-derived "
                 "'neon_10m_linearized' LR product. Download the corrected "
                 "metadata and 's2_l2a_10m' files from "
-                "https://huggingface.co/datasets/simon-donike/SEN2NEON."
+                "https://huggingface.co/datasets/isp-uv-es/SEN2NEON/"
             )
 
         self.crop_size_lr = crop_size_lr

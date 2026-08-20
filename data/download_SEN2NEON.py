@@ -7,7 +7,7 @@ the on-hub layout (metadata indexes, s2_l2a_10m/, neon_2.5m_linearized/).
 
 Usage:
   python download_data.py \
-    --repo-id simon-donike/SEN2NEON \
+    --repo-id isp-uv-es/SEN2NEON \
     --out-dir ./data/sen2neon_val
 
 Notes:
@@ -35,7 +35,7 @@ DEFAULT_PATTERNS = [
 
 def parse_args():
     p = argparse.ArgumentParser(description="Download SEN2NEON from Hugging Face Hub.")
-    p.add_argument("--repo-id", type=str, default="simon-donike/SEN2NEON",
+    p.add_argument("--repo-id", type=str, default="isp-uv-es/SEN2NEON",
                    help="Hugging Face dataset repo id (owner/name).")
     p.add_argument("--out-dir", type=str, default="data/sen2neon_val",
                    help="Local folder to populate with the dataset.")

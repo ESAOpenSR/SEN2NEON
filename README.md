@@ -52,11 +52,11 @@ pip install pandas numpy rasterio matplotlib tqdm huggingface_hub datasets opens
 
 ## 2. Download the dataset from Hugging Face
 
-The dataset is hosted on the Hugging Face Hub at [`simon-donike/SEN2NEON`](https://huggingface.co/datasets/simon-donike/SEN2NEON). Use the helper script to keep the on-hub directory layout:
+The dataset is hosted on the Hugging Face Hub at [`isp-uv-es/SEN2NEON`](https://huggingface.co/datasets/isp-uv-es/SEN2NEON/). Use the helper script to keep the on-hub directory layout:
 
 ```bash
 python data/download_SEN2NEON.py \
-  --repo-id simon-donike/SEN2NEON \
+  --repo-id isp-uv-es/SEN2NEON \
   --out-dir ./data/sen2neon \
   --high-performance     # optional, enables high-performance hf-xet transfers
 ```
@@ -87,7 +87,7 @@ Load the lightweight metadata index without downloading all GeoTIFFs:
 ```python
 from datasets import load_dataset
 
-index = load_dataset("simon-donike/SEN2NEON", split="validation")
+index = load_dataset("isp-uv-es/SEN2NEON", split="validation")
 print(index[0]["lr"], index[0]["hr"])
 ```
 
