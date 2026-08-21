@@ -9,12 +9,26 @@ from matplotlib import pyplot as plt
 import os
 import json
 
+
 class SEN2NEON(Dataset):
+    """Paired Sentinel-2/NEON tiles with a selectable HR product.
+
+    The 2.5 m product is the canonical SEN2NEON benchmark target described in
+    the paper. The 1 m product is an optional, supplementary output retained
+    from the dataset production workflow.
+    """
+
+    HR_COLUMNS = {
+        2.5: "hr_2_5m_path",
+        1.0: "hr_1m_path",
+    }
+
     def __init__(
         self,
         csv_path: str | Path,
         root_dir: str | Path,
         *,
+        hr_resolution: float | str = 2.5,
         crop_size_lr: int | None = None,   # in LR pixels; HR crop inferred
         dtype: torch.dtype = torch.float32,
         allow_nan: bool = False,
@@ -22,13 +36,30 @@ class SEN2NEON(Dataset):
     ):
         self.root_dir = Path(root_dir)
         self.df = pd.read_csv(csv_path)
-        # Normalize column names for paths
-        if {"lr", "hr"}.issubset(self.df.columns):
-            self.lr_col, self.hr_col = "lr", "hr"
-        elif {"lr_path", "hr_path"}.issubset(self.df.columns):
-            self.lr_col, self.hr_col = "lr_path", "hr_path"
+        self.hr_resolution = self._normalize_hr_resolution(hr_resolution)
+
+        # Normalize column names for paths. ``hr`` remains the canonical 2.5 m
+        # alias for compatibility with metadata released before the 1 m option.
+        if "lr" in self.df.columns:
+            self.lr_col = "lr"
+        elif "lr_path" in self.df.columns:
+            self.lr_col = "lr_path"
         else:
-            raise ValueError("CSV must have columns ('lr','hr') or ('lr_path','hr_path').")
+            raise ValueError("CSV must have an 'lr' or 'lr_path' column.")
+
+        requested_hr_col = self.HR_COLUMNS[self.hr_resolution]
+        if requested_hr_col in self.df.columns:
+            self.hr_col = requested_hr_col
+        elif self.hr_resolution == 2.5 and "hr" in self.df.columns:
+            self.hr_col = "hr"
+        elif self.hr_resolution == 2.5 and "hr_path" in self.df.columns:
+            self.hr_col = "hr_path"
+        else:
+            raise ValueError(
+                f"Metadata does not provide the {self.hr_resolution:g} m HR product. "
+                f"Expected column '{requested_hr_col}'. Download the current "
+                "metadata indexes from the SEN2NEON dataset repository."
+            )
 
         legacy_lr = self.df[self.lr_col].astype(str).str.startswith("neon_10m_linearized/")
         if legacy_lr.any():
@@ -55,6 +86,18 @@ class SEN2NEON(Dataset):
 
         # Meta keys (everything except the path columns)
         self.meta_cols = [c for c in self.df.columns if c not in {self.lr_col, self.hr_col}]
+
+    @staticmethod
+    def _normalize_hr_resolution(value: float | str) -> float:
+        if isinstance(value, str):
+            value = value.strip().lower().removesuffix("m")
+        try:
+            resolution = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("hr_resolution must be 1 or 2.5 metres.") from exc
+        if resolution not in {1.0, 2.5}:
+            raise ValueError("hr_resolution must be 1 or 2.5 metres.")
+        return resolution
 
     def __len__(self):
         return len(self.df)
@@ -153,6 +196,20 @@ class SEN2NEON(Dataset):
                     else:
                         v = str(v)
                 meta[c] = v
+
+        resolution_key = "hr_1m" if self.hr_resolution == 1.0 else "hr_2_5m"
+        meta.update({
+            "hr_path": str(row[self.hr_col]),
+            "hr_resolution_m": self.hr_resolution,
+            "hr_canonical_resolution_m": 2.5,
+        })
+        for field in ("width", "height", "pixel_size_m", "nodata", "transform", "status"):
+            selected_col = f"{resolution_key}_{field}"
+            canonical_col = f"hr_{field}"
+            if selected_col in row.index:
+                meta[canonical_col] = row[selected_col]
+            elif self.hr_resolution == 2.5 and canonical_col in row.index:
+                meta[canonical_col] = row[canonical_col]
 
         sample = {
             "lr": lr_t,
@@ -277,31 +334,23 @@ class SEN2NEON(Dataset):
             """
             Write a Hugging Face-friendly JSONL with relative paths from the CSV.
 
-            Record schema (columns included only if present in CSV):
-            {
-                "id": <stem of lr>,
-                "lr": <relative path from CSV>,
-                "hr": <relative path from CSV>,
-                "split": "validation",
-                "name": ...,
-                "lon": ..., "lat": ...,
-                "LC_detail_id": ..., "LC_superclass_id": ...,
-                "LC_superclass_text": ..., "LC_detail_text": ...
-            }
+            All metadata columns are retained. ``hr`` always points to the
+            canonical 2.5 m product even if this Dataset instance selected the
+            supplementary 1 m product.
 
             Args:
             out_path: where to write metadata.jsonl
             split: split tag to assign to all samples (default: "validation")
-            extra_keys: optional list of more CSV columns to include (if present)
+            extra_keys: optional additional columns to request (retained for
+                backward compatibility; all existing columns are exported)
             """
-            lr_col, hr_col = self.lr_col, self.hr_col
-            want_default = [
-                "name", "lon", "lat",
-                "LC_detail_id", "LC_superclass_id",
-                "LC_superclass_text", "LC_detail_text",
-                "LC_text" 
-            ]
-            wanted = want_default + (extra_keys or [])
+            lr_col = self.lr_col
+            canonical_hr_col = (
+                "hr" if "hr" in self.df.columns
+                else "hr_2_5m_path" if "hr_2_5m_path" in self.df.columns
+                else self.hr_col
+            )
+            wanted = list(dict.fromkeys([*self.df.columns, *(extra_keys or [])]))
 
             out_path = Path(out_path)
             out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -309,19 +358,22 @@ class SEN2NEON(Dataset):
             with out_path.open("w", encoding="utf-8") as f:
                 for _, row in self.df.iterrows():
                     lr_rel = str(row[lr_col])
-                    hr_rel = str(row[hr_col])
+                    hr_rel = str(row[canonical_hr_col])
                     rec = {
                         "id": Path(lr_rel).stem,
                         "lr": lr_rel,
                         "hr": hr_rel,
                         "split": split,
                     }
-                    # attach optional columns if present
+                    # Attach every source column so alternate HR paths and
+                    # per-resolution raster properties are not discarded.
                     for k in wanted:
-                        if k in self.df.columns:
+                        if k in self.df.columns and k not in rec:
                             v = row[k]
-                            if isinstance(v, float) and np.isnan(v):
-                                v = np.nan
+                            if pd.isna(v):
+                                v = None
+                            elif isinstance(v, np.generic):
+                                v = v.item()
                             rec[k] = v
                     f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 

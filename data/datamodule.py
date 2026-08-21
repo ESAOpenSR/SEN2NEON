@@ -16,6 +16,7 @@ class SEN2NEONDataModule:
         num_workers: int = 4,
         pin_memory: bool = True,
         # CSVPairedTiffDataset kwargs:
+        hr_resolution: float | str = 2.5,
         crop_size_lr: int | None = None,
         dtype: torch.dtype = torch.float32,
         allow_nan: bool = False,
@@ -32,6 +33,7 @@ class SEN2NEONDataModule:
         self.pin_memory = pin_memory
 
         self.ds_kwargs = dict(
+            hr_resolution=hr_resolution,
             crop_size_lr=crop_size_lr,
             dtype=dtype,
             allow_nan=allow_nan,

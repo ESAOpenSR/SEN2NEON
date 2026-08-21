@@ -11,6 +11,7 @@ opensr-srgan
 opensr-test
 pandas
 Pillow
+pyarrow
 rasterio
 requests
 scikit-image
