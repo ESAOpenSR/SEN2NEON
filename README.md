@@ -1,3 +1,5 @@
+> **Release correction — 20 August 2026:** A previous dataset upload mistakenly provided a linearized 10 m NEON product as `lr`. This was corrected on 20 August 2026. The canonical LR files are now in `s2_l2a_10m/` and contain the original Sentinel-2 observations exported through Google Earth Engine.
+
 <p align="center">
   <img src="resources/sen2neon_banner.png" alt="SEN2NEON example" width="100%">
 </p>
@@ -10,8 +12,6 @@
 # SEN2NEON - Dataset for Multispectral Sentinel-2 Super-Resolution 
 
 SEN2NEON is a PyTorch-based dataset and evaluation suite for the **SEN2NEON multispectral super-resolution benchmark**. The project aligns Sentinel-2 Level-2A reflectances with co-registered 1 m AVIRIS-NG hyperspectral imagery, creating the first large-scale reference set for the Sentinel-2 20 m bands under real reflectance conditions.
-
-> **Release correction — 20 August 2026:** A previous dataset upload mistakenly provided a linearized 10 m NEON product as `lr`. This was corrected on 20 August 2026. The canonical LR files are now in `s2_l2a_10m/` and contain the original Sentinel-2 observations exported through Google Earth Engine.
 
 > **HR resolution:** The **2.5 m HR product is the canonical SEN2NEON product described and evaluated in the paper**. We also provide spatially aligned 1 m HR tiles because they are produced as an intermediate output of our processing workflow and may be useful to others. The 1 m product is supplementary; it does not redefine the paper benchmark or its reported results.
 
